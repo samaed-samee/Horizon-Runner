@@ -4,6 +4,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)
 ![Maintained](https://img.shields.io/badge/maintained-yes-brightgreen.svg?style=flat-square)
 ![Author](https://img.shields.io/badge/author-samaed--samee-orange.svg?style=flat-square)
+![Stars](https://img.shields.io/github/stars/samaed-samee/Horizon-Runner?style=flat-square)
 
 > A high-octane, atmospheric endless runner set in a procedural urban landscape. Experience the thrill of parkour with dynamic weather, day-night cycles, and immersive audio.
 
@@ -40,11 +41,30 @@ Built with vanilla **JavaScript** and **HTML5 Canvas**, styled with **TailwindCS
 
 ## 🛠️ Tech Stack
 
--   **Core**: HTML5, CSS3, JavaScript (ES6+)
--   **Rendering**: HTML5 Canvas API (2D Context)
--   **Styling**: TailwindCSS (via CDN)
--   **Audio**: Web Audio API (No external assets required)
--   **Fonts**: Google Fonts (Inter)
+<div align="left">
+  <img src="https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white" />
+  <img src="https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white" />
+  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" />
+</div>
+
+-   **Rendering Engine**: HTML5 Canvas 2D API for high-performance rendering.
+-   **Physics**: Custom-built 2D physics engine with gravity and collision detection.
+-   **Audio Synthesis**: Web Audio API for real-time procedural soundscapes (no MP3/WAV files).
+-   **UI/UX**: Responsive design powered by TailwindCSS and CSS transitions.
+
+## ⚡ Performance & Optimization
+
+-   **Offscreen Cleanup**: Platforms and buildings are dynamically removed from memory once they move off-screen to ensure long-term stability.
+-   **Procedural Audio**: Using the Web Audio API instead of static files reduces initial load time and allows for infinitely variable sound patterns (like varying rain intensity).
+-   **Canvas Optimization**: Minimal overdraw and efficient clearRect loops maintain a steady 60 FPS on most modern hardware.
+
+## 🗺️ Roadmap
+
+- [ ] **Character Skins**: Unlockable outfits based on distance achieved.
+- [ ] **New Environments**: Cyberpunk rooftops, industrial zones, and forest parkour.
+- [ ] **Global Leaderboard**: Save and compete with runners worldwide.
+- [ ] **Power-ups**: Magnets for score boosters or slow-motion "focus" mode.
 
 ## 📦 Installation & Setup
 
@@ -52,19 +72,19 @@ No build process required! This game runs directly in the browser.
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/samaed-samee/horizon-runner.git
+    git clone https://github.com/samaed-samee/Horizon-Runner.git
     ```
 2.  **Navigate to the project folder:**
     ```bash
-    cd horizon-runner
+    cd Horizon-Runner
     ```
 3.  **Run the game:**
-    -   Simply open `index.html` in your favorite web browser (Chrome, Firefox, Edge, etc.).
-    -   *Optional*: Use a local server like Live Server for the best experience.
+    -   Simply open `index.html` in your favorite web browser.
+    -   *Optional*: Use a local server like `Live Server` for the best experience.
 
 ## 🤝 Contributing
 
-Contributions are welcome! If you'd like to improve the game's physics, add new power-ups, or enhance the visuals:
+Contributions are welcome!
 
 1.  Fork the Project
 2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
@@ -75,13 +95,12 @@ Contributions are welcome! If you'd like to improve the game's physics, add new 
 ## 👤 Author
 
 **samaed-samee**
-
--   GitHub: [@samaed-samee](https://github.com/samaed-samee)
+- GitHub: [@samaed-samee](https://github.com/samaed-samee)
 
 ## 📄 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
-
 *Made with ❤️ and code.*
+
