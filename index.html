@@ -251,11 +251,17 @@
 
         <!-- HUD -->
         <div class="ui-layer">
-            <div class="flex justify-between w-full">
-                <div class="hud-panel">
-                    <div class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Distance</div>
-                    <div class="text-3xl font-black tabular-nums tracking-tighter"><span id="score-el">0</span><span
-                            class="text-sm text-slate-500 ml-1">m</span></div>
+            <div class="flex justify-between w-full items-start">
+                <div class="flex items-start gap-2">
+                    <div class="hud-panel">
+                        <div class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Distance</div>
+                        <div class="text-3xl font-black tabular-nums tracking-tighter"><span id="score-el">0</span><span
+                                class="text-sm text-slate-500 ml-1">m</span></div>
+                    </div>
+                    <div class="hud-panel" id="lives-panel">
+                        <div class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Lives</div>
+                        <div id="hearts-el" class="text-2xl mt-0.5" style="transform: skewX(5deg);">❤️❤️❤️</div>
+                    </div>
                 </div>
                 <div class="flex items-start gap-2">
                     <div class="hud-panel text-right">
@@ -359,8 +365,12 @@
         let animTime = 0;
         let timeProgress = 0;
         let lastStepTime = 0;
-        let frameCount = 0; // Fixed: Added global frameCount
-        let lastTime = 0; // For delta-time normalization
+        let frameCount = 0;
+        let lastTime = 0;
+        let lives = 3;
+        let invincibleTimer = 0; // brief invincibility after losing a life
+        let transitionCreatures = []; // butterflies/parrots during transition
+        let biomeFlashAlpha = 0; // transition flash effect
 
         // Player
         const player = {
@@ -383,6 +393,7 @@
         let stars = [];
         let birds = [];
         let mountainPoints = [];
+        let nightAircraft = []; // planes flying at night
 
         // Biome System (city → jungle, looping)
         const BIOME_CYCLE = 40000; // pixels per full biome cycle (~4000m score)
@@ -396,13 +407,14 @@
 
         function initBirds() {
             birds = [];
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < 8; i++) {
                 birds.push({
                     x: Math.random() * canvas.width,
-                    y: 30 + Math.random() * canvas.height * 0.25,
-                    speed: 0.3 + Math.random() * 0.5,
+                    y: 15 + Math.random() * canvas.height * 0.15,
+                    speed: 0.4 + Math.random() * 0.6,
                     wingPhase: Math.random() * Math.PI * 2,
-                    size: 3 + Math.random() * 4
+                    size: 4 + Math.random() * 5,
+                    bobPhase: Math.random() * Math.PI * 2
                 });
             }
         }
@@ -576,12 +588,24 @@
         function initClouds() {
             weather.clouds = [];
             for (let i = 0; i < 8; i++) {
+                const w = 100 + Math.random() * 200;
+                const h = 40 + Math.random() * 40;
+                // Generate puffy circle data for each cloud
+                const puffs = [];
+                const puffCount = 4 + Math.floor(Math.random() * 4);
+                for (let p = 0; p < puffCount; p++) {
+                    puffs.push({
+                        xOff: (p / (puffCount - 1)) * w * 0.8 + w * 0.1 - w / 2,
+                        yOff: (Math.random() - 0.5) * h * 0.4,
+                        r: h * 0.35 + Math.random() * h * 0.3
+                    });
+                }
                 weather.clouds.push({
                     x: Math.random() * canvas.width,
                     y: Math.random() * canvas.height * 0.3,
-                    w: 100 + Math.random() * 200,
-                    h: 40 + Math.random() * 40,
-                    speed: 0.2 + Math.random() * 0.3
+                    w, h,
+                    speed: 0.2 + Math.random() * 0.3,
+                    puffs
                 });
             }
         }
@@ -606,6 +630,11 @@
             lastStepTime = 0;
             frameCount = 0;
             lastTime = 0;
+            lives = 3;
+            invincibleTimer = 0;
+            biomeFlashAlpha = 0;
+            transitionCreatures = [];
+            nightAircraft = [];
 
             platforms = [];
             particles = [];
@@ -621,16 +650,40 @@
             initBirds();
             initMountains();
 
-            platforms.push({ x: 0, y: canvas.height - 150, w: 1500, h: 600 });
+            platforms.push(createPlatform(0, canvas.height - 150, 1500));
 
             for (let i = 0; i < 18; i++) {
                 backgroundBuildings.push(createBackgroundElement(i * 120 - 200, 0));
             }
 
+            updateLivesUI();
             gameState = 'PLAYING';
             scoreEl.innerText = '0';
             updateStaminaUI();
             requestAnimationFrame(loop);
+        }
+
+        function updateLivesUI() {
+            const heartsEl = document.getElementById('hearts-el');
+            let html = '';
+            for (let i = 0; i < 3; i++) {
+                if (i < lives) html += '<span style="filter: drop-shadow(0 0 4px #ef4444);">❤️</span>';
+                else html += '<span style="opacity:0.2;filter:grayscale(1);">❤️</span>';
+            }
+            heartsEl.innerHTML = html;
+        }
+
+        // Create platform with pre-seeded decoration positions (fixes glitch)
+        function createPlatform(x, y, w) {
+            const mossTufts = [];
+            for (let mx = 0; mx < w; mx += 12 + Math.random() * 8) {
+                mossTufts.push({ x: mx, h: 3 + Math.random() * 5 });
+            }
+            const vinePositions = [];
+            for (let vx = 20; vx < w; vx += 60 + Math.random() * 40) {
+                vinePositions.push({ x: vx, len: 15 + Math.random() * 25, cx: 5, cy: -3 });
+            }
+            return { x, y, w, h: 1000, mossTufts, vinePositions };
         }
 
         // Creates either a building (city) or tree (jungle) based on biome
@@ -708,29 +761,73 @@
 
         function createTree(xOffset) {
             const layer = Math.floor(Math.random() * 3);
-            const trunkH = 80 + Math.random() * 120;
-            const trunkW = 8 + Math.random() * 10;
-            const canopyType = Math.random() > 0.4 ? 'round' : 'pine';
-            const canopySize = 30 + Math.random() * 50;
-            const leafShade = Math.floor(Math.random() * 3); // 0=dark,1=mid,2=light
-            // Vines
-            const vines = [];
-            if (Math.random() > 0.4) {
-                const vCount = 1 + Math.floor(Math.random() * 3);
-                for (let i = 0; i < vCount; i++) {
-                    vines.push({
-                        xOff: -canopySize * 0.6 + Math.random() * canopySize * 1.2,
-                        len: 20 + Math.random() * 40,
-                        sway: Math.random() * Math.PI * 2
+            const trunkH = 100 + Math.random() * 150;
+            const trunkW = 10 + Math.random() * 14;
+            const canopyType = Math.random() > 0.35 ? 'round' : 'pine';
+            const canopySize = 40 + Math.random() * 60;
+            const leafShade = Math.floor(Math.random() * 3);
+            // Branches
+            const branches = [];
+            const branchCount = 2 + Math.floor(Math.random() * 3);
+            for (let i = 0; i < branchCount; i++) {
+                branches.push({
+                    yFrac: 0.3 + Math.random() * 0.5,
+                    side: Math.random() > 0.5 ? 1 : -1,
+                    len: 15 + Math.random() * 25,
+                    angle: 0.3 + Math.random() * 0.6
+                });
+            }
+            // Leaf clusters on branches
+            const leafClusters = [];
+            branches.forEach(br => {
+                if (Math.random() > 0.3) {
+                    leafClusters.push({
+                        yFrac: br.yFrac,
+                        side: br.side,
+                        len: br.len,
+                        angle: br.angle,
+                        size: 8 + Math.random() * 12,
+                        shade: Math.floor(Math.random() * 3)
                     });
                 }
+            });
+            // Roots
+            const roots = [];
+            if (Math.random() > 0.3) {
+                const rootCount = 2 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < rootCount; i++) {
+                    roots.push({
+                        side: (i % 2 === 0) ? -1 : 1,
+                        len: 10 + Math.random() * 20,
+                        curve: Math.random() * 8
+                    });
+                }
+            }
+            // Vines
+            const vines = [];
+            if (Math.random() > 0.3) {
+                const vCount = 2 + Math.floor(Math.random() * 4);
+                for (let i = 0; i < vCount; i++) {
+                    vines.push({
+                        xOff: -canopySize * 0.7 + Math.random() * canopySize * 1.4,
+                        len: 25 + Math.random() * 50,
+                        sway: Math.random() * Math.PI * 2,
+                        leaflets: Math.random() > 0.4
+                    });
+                }
+            }
+            // Trunk texture seeds
+            const barkLines = [];
+            for (let by = 5; by < trunkH; by += 8 + Math.random() * 6) {
+                barkLines.push({ y: by, curve: (Math.random() - 0.5) * 4 });
             }
             return {
                 x: xOffset,
                 y: canvas.height - trunkH + 80,
                 w: Math.max(canopySize * 2, trunkW + 20),
                 h: trunkH,
-                layer, trunkW, canopyType, canopySize, leafShade, vines,
+                layer, trunkW, canopyType, canopySize, leafShade,
+                branches, leafClusters, roots, vines, barkLines,
                 elementType: 'tree'
             };
         }
@@ -847,7 +944,10 @@
                 }
             }
 
-            if (player.y > canvas.height) gameOver();
+            if (player.y > canvas.height) loseLife();
+
+            // Invincibility countdown
+            if (invincibleTimer > 0) invincibleTimer -= dt;
 
             const rightmostPlatform = platforms[platforms.length - 1];
             const rightmostX = rightmostPlatform.x + rightmostPlatform.w;
@@ -859,7 +959,7 @@
                 let newY = lastY + (Math.random() * 250 - 125);
                 newY = Math.max(canvas.height * 0.4, Math.min(canvas.height - 150, newY));
 
-                platforms.push({ x: rightmostX + gap, y: newY, w: w, h: 1000 });
+                platforms.push(createPlatform(rightmostX + gap, newY, w));
             }
 
             if (platforms[0].x + platforms[0].w < cameraX - 200) {
@@ -883,12 +983,67 @@
             // Bird updates
             birds.forEach(bird => {
                 bird.x -= bird.speed * dt;
-                bird.wingPhase += 0.08 * dt;
-                if (bird.x < -20) {
-                    bird.x = canvas.width + 20 + Math.random() * 100;
-                    bird.y = 30 + Math.random() * canvas.height * 0.25;
+                bird.wingPhase += 0.1 * dt;
+                bird.bobPhase = (bird.bobPhase || 0) + 0.02 * dt;
+                if (bird.x < -30) {
+                    bird.x = canvas.width + 30 + Math.random() * 150;
+                    bird.y = 15 + Math.random() * canvas.height * 0.15;
                 }
             });
+
+            // Night aircraft
+            if (timeProgress > 0.25 && timeProgress < 0.8) {
+                if (Math.random() > 0.998 && nightAircraft.length < 2) {
+                    nightAircraft.push({
+                        x: -50,
+                        y: 20 + Math.random() * canvas.height * 0.2,
+                        speed: 0.8 + Math.random() * 0.5,
+                        size: 3 + Math.random() * 2,
+                        blinkPhase: Math.random() * Math.PI * 2
+                    });
+                }
+            }
+            for (let i = nightAircraft.length - 1; i >= 0; i--) {
+                nightAircraft[i].x += nightAircraft[i].speed * dt;
+                nightAircraft[i].blinkPhase += 0.15 * dt;
+                if (nightAircraft[i].x > canvas.width + 100) nightAircraft.splice(i, 1);
+            }
+
+            // Transition creature spawning
+            const biomeNow = getBiome(cameraX);
+            if (biomeNow.type === 'transition') {
+                // Spawn butterflies/parrots during transitions
+                if (Math.random() > 0.92) {
+                    const isParrot = Math.random() > 0.5;
+                    transitionCreatures.push({
+                        x: canvas.width + 20,
+                        y: 50 + Math.random() * canvas.height * 0.4,
+                        vx: -(1.5 + Math.random() * 2),
+                        vy: (Math.random() - 0.5) * 0.5,
+                        type: isParrot ? 'parrot' : 'butterfly',
+                        phase: Math.random() * Math.PI * 2,
+                        size: isParrot ? 8 + Math.random() * 4 : 4 + Math.random() * 4,
+                        color: isParrot ?
+                            ['#ef4444', '#22c55e', '#3b82f6', '#eab308'][Math.floor(Math.random() * 4)] :
+                            ['#c084fc', '#fb923c', '#38bdf8', '#fbbf24', '#f472b6'][Math.floor(Math.random() * 5)]
+                    });
+                }
+            }
+            // Update transition creatures
+            for (let i = transitionCreatures.length - 1; i >= 0; i--) {
+                const tc = transitionCreatures[i];
+                tc.x += tc.vx * dt;
+                tc.y += tc.vy * dt + Math.sin(tc.phase) * 0.3;
+                tc.phase += 0.12 * dt;
+                if (tc.x < -30) transitionCreatures.splice(i, 1);
+            }
+
+            // Biome transition flash effect
+            if (biomeNow.type === 'transition') {
+                if (biomeFlashAlpha < 0.15) biomeFlashAlpha += 0.003 * dt;
+            } else {
+                if (biomeFlashAlpha > 0) biomeFlashAlpha -= 0.005 * dt;
+            }
 
             if (player.stamina < 100) {
                 player.stamina += 0.15 * dt;
@@ -1264,26 +1419,206 @@
             ctx.fillStyle = fogGrad;
             ctx.fillRect(0, fogY - 30, canvas.width, 80);
 
-            // === FLYING BIRDS ===
-            ctx.strokeStyle = `rgba(30, 30, 30, 0.4)`;
-            ctx.lineWidth = 1.5;
+            // === FLYING BIRDS (proper silhouettes) ===
             birds.forEach(bird => {
-                const wingY = Math.sin(bird.wingPhase) * bird.size * 0.6;
+                const wing = Math.sin(bird.wingPhase) * 0.6;
+                const bob = Math.sin(bird.bobPhase || 0) * 1.5;
+                const bx = bird.x;
+                const by = bird.y + bob;
+                const s = bird.size;
+                ctx.fillStyle = `rgba(20, 20, 30, 0.5)`;
                 ctx.beginPath();
-                ctx.moveTo(bird.x - bird.size, bird.y + wingY);
-                ctx.lineTo(bird.x, bird.y);
-                ctx.lineTo(bird.x + bird.size, bird.y + wingY);
-                ctx.stroke();
-            });
-
-            // Clouds (Weather)
-            weather.clouds.forEach(c => {
-                const stormDarkness = weather.intensity * 100;
-                ctx.fillStyle = `rgba(${255 - stormDarkness}, ${255 - stormDarkness}, ${255 - stormDarkness}, 0.3)`;
+                // Body
+                ctx.ellipse(bx, by, s * 0.8, s * 0.2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // Left wing
                 ctx.beginPath();
-                ctx.roundRect(c.x, c.y, c.w, c.h, 20);
+                ctx.moveTo(bx - s * 0.2, by);
+                ctx.quadraticCurveTo(bx - s * 1.2, by - s * wing * 1.2, bx - s * 1.5, by - s * wing);
+                ctx.quadraticCurveTo(bx - s * 0.8, by - s * 0.1, bx - s * 0.2, by);
+                ctx.fill();
+                // Right wing
+                ctx.beginPath();
+                ctx.moveTo(bx + s * 0.2, by);
+                ctx.quadraticCurveTo(bx + s * 1.2, by - s * wing * 1.2, bx + s * 1.5, by - s * wing);
+                ctx.quadraticCurveTo(bx + s * 0.8, by - s * 0.1, bx + s * 0.2, by);
+                ctx.fill();
+                // Tail
+                ctx.beginPath();
+                ctx.moveTo(bx - s * 0.6, by);
+                ctx.lineTo(bx - s * 1.0, by + s * 0.15);
+                ctx.lineTo(bx - s * 1.0, by - s * 0.1);
+                ctx.closePath();
                 ctx.fill();
             });
+
+            // === NIGHT AIRCRAFT ===
+            if (timeProgress > 0.25 && timeProgress < 0.8) {
+                nightAircraft.forEach(ac => {
+                    const ax = ac.x;
+                    const ay = ac.y;
+                    const sz = ac.size;
+                    // Fuselage
+                    ctx.fillStyle = 'rgba(100, 116, 139, 0.4)';
+                    ctx.beginPath();
+                    ctx.ellipse(ax, ay, sz * 3, sz * 0.4, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Wings
+                    ctx.fillStyle = 'rgba(100, 116, 139, 0.3)';
+                    ctx.beginPath();
+                    ctx.moveTo(ax - sz, ay);
+                    ctx.lineTo(ax, ay - sz * 2);
+                    ctx.lineTo(ax + sz * 0.5, ay);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(ax - sz, ay);
+                    ctx.lineTo(ax, ay + sz * 2);
+                    ctx.lineTo(ax + sz * 0.5, ay);
+                    ctx.closePath();
+                    ctx.fill();
+                    // Tail fin
+                    ctx.beginPath();
+                    ctx.moveTo(ax - sz * 2.5, ay);
+                    ctx.lineTo(ax - sz * 3, ay - sz * 0.8);
+                    ctx.lineTo(ax - sz * 1.8, ay);
+                    ctx.closePath();
+                    ctx.fill();
+                    // Blinking nav lights
+                    const blinkOn = Math.sin(ac.blinkPhase) > 0;
+                    if (blinkOn) {
+                        ctx.fillStyle = '#ef4444';
+                        ctx.shadowColor = '#ef4444';
+                        ctx.shadowBlur = 8;
+                        ctx.beginPath();
+                        ctx.arc(ax + sz * 3, ay, 1.5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.shadowBlur = 0;
+                    }
+                    // Steady white light
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.shadowColor = 'white';
+                    ctx.shadowBlur = 6;
+                    ctx.beginPath();
+                    ctx.arc(ax - sz * 2.8, ay, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    // Wing tip lights
+                    ctx.fillStyle = '#22c55e';
+                    ctx.shadowColor = '#22c55e';
+                    ctx.shadowBlur = 5;
+                    ctx.beginPath();
+                    ctx.arc(ax, ay - sz * 1.8, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#ef4444';
+                    ctx.shadowColor = '#ef4444';
+                    ctx.beginPath();
+                    ctx.arc(ax, ay + sz * 1.8, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                });
+            }
+
+            // Clouds (Weather) - Natural cloud shape
+            weather.clouds.forEach(c => {
+                const stormDarkness = weather.intensity * 100;
+                const baseR = Math.max(0, 255 - stormDarkness);
+                const cx = c.x + c.w / 2;
+                const cy = c.y + c.h / 2;
+                if (c.puffs) {
+                    // Draw all puffs as a single merged shape
+                    ctx.fillStyle = `rgba(${baseR}, ${baseR}, ${Math.min(255, baseR + 10)}, 0.25)`;
+                    ctx.beginPath();
+                    c.puffs.forEach(pf => {
+                        ctx.moveTo(cx + pf.xOff + pf.r, cy + pf.yOff);
+                        ctx.arc(cx + pf.xOff, cy + pf.yOff, pf.r, 0, Math.PI * 2);
+                    });
+                    ctx.fill();
+                    // Subtle flat bottom shadow
+                    ctx.fillStyle = `rgba(${Math.max(0, baseR - 60)}, ${Math.max(0, baseR - 70)}, ${Math.max(0, baseR - 50)}, 0.08)`;
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy + c.h * 0.2, c.w * 0.4, c.h * 0.2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = `rgba(${baseR}, ${baseR}, ${baseR}, 0.25)`;
+                    ctx.beginPath();
+                    ctx.roundRect(c.x, c.y, c.w, c.h, 20);
+                    ctx.fill();
+                }
+            });
+
+            // === TRANSITION CREATURES (butterflies/parrots) ===
+            transitionCreatures.forEach(tc => {
+                ctx.save();
+                ctx.translate(tc.x, tc.y);
+                if (tc.type === 'butterfly') {
+                    const wingAngle = Math.sin(tc.phase * 3) * 0.7;
+                    ctx.fillStyle = tc.color;
+                    // Left wing
+                    ctx.save();
+                    ctx.rotate(-wingAngle);
+                    ctx.beginPath();
+                    ctx.ellipse(-tc.size * 0.6, 0, tc.size, tc.size * 0.6, -0.3, 0, Math.PI * 2);
+                    ctx.globalAlpha = 0.7;
+                    ctx.fill();
+                    ctx.restore();
+                    // Right wing
+                    ctx.save();
+                    ctx.rotate(wingAngle);
+                    ctx.beginPath();
+                    ctx.ellipse(tc.size * 0.6, 0, tc.size, tc.size * 0.6, 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                    // Body
+                    ctx.globalAlpha = 1;
+                    ctx.fillStyle = '#1e293b';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 1.5, tc.size * 0.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // Parrot
+                    const wingFlap = Math.sin(tc.phase * 4) * 0.5;
+                    ctx.fillStyle = tc.color;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, tc.size, tc.size * 0.4, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Wing
+                    ctx.save();
+                    ctx.rotate(wingFlap);
+                    ctx.fillStyle = tc.color;
+                    ctx.globalAlpha = 0.8;
+                    ctx.beginPath();
+                    ctx.moveTo(-2, -tc.size * 0.3);
+                    ctx.quadraticCurveTo(-tc.size, -tc.size * 1.2, -tc.size * 0.5, 0);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                    // Head
+                    ctx.globalAlpha = 1;
+                    ctx.fillStyle = tc.color;
+                    ctx.beginPath();
+                    ctx.arc(tc.size * 0.7, -tc.size * 0.1, tc.size * 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Beak
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.beginPath();
+                    ctx.moveTo(tc.size * 0.9, -tc.size * 0.1);
+                    ctx.lineTo(tc.size * 1.3, 0);
+                    ctx.lineTo(tc.size * 0.9, tc.size * 0.1);
+                    ctx.fill();
+                }
+                ctx.restore();
+            });
+
+            // === BIOME TRANSITION EFFECT ===
+            if (biomeFlashAlpha > 0.001) {
+                const biomeNowDraw = getBiome(cameraX);
+                const flashR = biomeNowDraw.blend > 0.5 ? 34 : 100;
+                const flashG = biomeNowDraw.blend > 0.5 ? 139 : 116;
+                const flashB = biomeNowDraw.blend > 0.5 ? 34 : 139;
+                ctx.fillStyle = `rgba(${flashR}, ${flashG}, ${flashB}, ${biomeFlashAlpha})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
 
             // === BACKGROUND ELEMENTS (Buildings + Trees) ===
             backgroundBuildings.forEach(b => {
@@ -1302,9 +1637,13 @@
                 const pBiome = getBiome(p.x);
                 if (pBiome.blend > 0.5) {
                     // JUNGLE: wooden planks
-                    ctx.fillStyle = '#5c3d2e';
+                    const woodGrad = ctx.createLinearGradient(p.x, p.y, p.x, p.y + Math.min(35, p.h));
+                    woodGrad.addColorStop(0, '#6d4c2e');
+                    woodGrad.addColorStop(0.5, '#5c3d2e');
+                    woodGrad.addColorStop(1, '#4a3020');
+                    ctx.fillStyle = woodGrad;
                     ctx.fillRect(p.x, p.y, p.w, p.h);
-                    // Plank lines
+                    // Plank lines (deterministic)
                     ctx.strokeStyle = '#4a3020';
                     ctx.lineWidth = 1;
                     for (let lx = 0; lx < p.w; lx += 35 + Math.sin(lx) * 10) {
@@ -1316,45 +1655,42 @@
                     // Mossy top edge
                     ctx.fillStyle = '#4ade80';
                     ctx.fillRect(p.x, p.y, p.w, 3);
+                    // Moss tufts (pre-seeded, no glitch)
                     ctx.fillStyle = '#22c55e';
-                    // Moss tufts
-                    for (let mx = 0; mx < p.w; mx += 12 + Math.random() * 8) {
-                        const mh = 3 + Math.random() * 5;
-                        ctx.beginPath();
-                        ctx.arc(p.x + mx, p.y, mh, Math.PI, 0);
-                        ctx.fill();
+                    if (p.mossTufts) {
+                        p.mossTufts.forEach(mt => {
+                            ctx.beginPath();
+                            ctx.arc(p.x + mt.x, p.y, mt.h, Math.PI, 0);
+                            ctx.fill();
+                        });
                     }
-                    // Vines hanging below
+                    // Vines hanging below (pre-seeded)
                     ctx.strokeStyle = '#16a34a';
                     ctx.lineWidth = 1.5;
-                    for (let vx = 20; vx < p.w; vx += 60 + Math.random() * 40) {
-                        const vLen = 15 + Math.random() * 25;
-                        ctx.beginPath();
-                        ctx.moveTo(p.x + vx, p.y + 4);
-                        ctx.quadraticCurveTo(p.x + vx + 5, p.y + vLen * 0.6, p.x + vx - 3, p.y + vLen);
-                        ctx.stroke();
+                    if (p.vinePositions) {
+                        p.vinePositions.forEach(vp => {
+                            ctx.beginPath();
+                            ctx.moveTo(p.x + vp.x, p.y + 4);
+                            ctx.quadraticCurveTo(p.x + vp.x + vp.cx, p.y + vp.len * 0.6, p.x + vp.x + vp.cy, p.y + vp.len);
+                            ctx.stroke();
+                        });
                     }
                 } else {
                     // CITY: concrete rooftops
                     ctx.fillStyle = '#1e293b';
                     ctx.fillRect(p.x, p.y, p.w, p.h);
-                    // Top edge highlight
                     ctx.fillStyle = '#475569';
                     ctx.fillRect(p.x, p.y, p.w, 4);
-                    // Floor lines (structural detail)
                     ctx.fillStyle = '#334155';
                     for (let lx = 50; lx < p.w; lx += 100) {
                         ctx.fillRect(p.x + lx, p.y + 10, 3, Math.min(p.h - 20, 40));
                     }
-                    // Railing posts
                     ctx.fillStyle = '#64748b';
                     for (let rx = 0; rx < p.w; rx += 40) {
                         ctx.fillRect(p.x + rx, p.y - 8, 2, 8);
                     }
-                    // Railing top bar
                     ctx.fillStyle = '#475569';
                     ctx.fillRect(p.x, p.y - 8, p.w, 1.5);
-                    // Random pipes/vents
                     if (p.w > 200) {
                         ctx.fillStyle = '#334155';
                         ctx.fillRect(p.x + 30, p.y + 6, 8, 12);
@@ -1363,7 +1699,12 @@
                 }
             });
 
+            // Invincibility flash on character
+            if (invincibleTimer > 0 && Math.sin(animTime * 20) > 0) {
+                ctx.globalAlpha = 0.4;
+            }
             drawCharacter(player.x, player.y, player.width, player.height);
+            ctx.globalAlpha = 1.0;
 
             particles.forEach(p => {
                 ctx.globalAlpha = p.life;
@@ -1376,16 +1717,28 @@
 
             ctx.restore();
 
-            // Rain (Foreground)
+            // Rain (Foreground) - Enhanced with variable thickness and mist
             if (weather.intensity > 0) {
-                ctx.strokeStyle = `rgba(170, 200, 255, ${weather.intensity * 0.5})`;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
+                // Main rain streaks
                 weather.raindrops.forEach(r => {
+                    const thickness = 0.5 + r.l * 0.05;
+                    const alpha = weather.intensity * (0.3 + (r.l / 30) * 0.3);
+                    ctx.strokeStyle = `rgba(170, 200, 255, ${alpha})`;
+                    ctx.lineWidth = thickness;
+                    ctx.beginPath();
                     ctx.moveTo(r.x, r.y);
                     ctx.lineTo(r.x + r.vx * 2, r.y + r.l);
+                    ctx.stroke();
                 });
-                ctx.stroke();
+                // Rain mist layer near ground
+                if (weather.intensity > 0.3) {
+                    const mistAlpha = (weather.intensity - 0.3) * 0.15;
+                    const mistGrad = ctx.createLinearGradient(0, canvas.height - 120, 0, canvas.height);
+                    mistGrad.addColorStop(0, `rgba(170, 200, 255, 0)`);
+                    mistGrad.addColorStop(1, `rgba(170, 200, 255, ${mistAlpha})`);
+                    ctx.fillStyle = mistGrad;
+                    ctx.fillRect(0, canvas.height - 120, canvas.width, 120);
+                }
             }
 
             // Vignette & Flash
@@ -1530,72 +1883,149 @@
             }
         }
 
-        // === TREE RENDERER ===
+        // === ENHANCED TREE RENDERER ===
         function drawTree(t) {
             const baseAlpha = 0.3 + t.layer * 0.2;
             const cx = t.x + t.w / 2;
-            // Trunk
-            ctx.fillStyle = `rgba(101, 67, 33, ${baseAlpha + 0.2})`;
+
+            // Roots
+            if (t.roots) {
+                ctx.strokeStyle = `rgba(80, 50, 20, ${baseAlpha + 0.15})`;
+                ctx.lineWidth = 2.5;
+                t.roots.forEach(root => {
+                    const rootStartX = cx + root.side * t.trunkW * 0.3;
+                    const rootStartY = t.y + t.h;
+                    ctx.beginPath();
+                    ctx.moveTo(rootStartX, rootStartY);
+                    ctx.quadraticCurveTo(
+                        rootStartX + root.side * root.len * 0.6,
+                        rootStartY + root.curve,
+                        rootStartX + root.side * root.len,
+                        rootStartY + 4
+                    );
+                    ctx.stroke();
+                });
+            }
+
+            // Trunk with gradient
+            const trunkGrad = ctx.createLinearGradient(cx - t.trunkW / 2, t.y, cx + t.trunkW / 2, t.y);
+            trunkGrad.addColorStop(0, `rgba(80, 50, 20, ${baseAlpha + 0.25})`);
+            trunkGrad.addColorStop(0.4, `rgba(101, 67, 33, ${baseAlpha + 0.2})`);
+            trunkGrad.addColorStop(1, `rgba(70, 45, 18, ${baseAlpha + 0.2})`);
+            ctx.fillStyle = trunkGrad;
             ctx.fillRect(cx - t.trunkW / 2, t.y, t.trunkW, t.h);
-            // Bark lines
-            ctx.strokeStyle = `rgba(80, 50, 20, ${baseAlpha * 0.5})`;
-            ctx.lineWidth = 0.5;
-            for (let by = 5; by < t.h; by += 12 + Math.random() * 8) {
-                ctx.beginPath();
-                ctx.moveTo(cx - t.trunkW / 2 + 2, t.y + by);
-                ctx.lineTo(cx + t.trunkW / 2 - 2, t.y + by + 3);
-                ctx.stroke();
+
+            // Bark texture (pre-seeded)
+            if (t.barkLines) {
+                ctx.strokeStyle = `rgba(60, 35, 12, ${baseAlpha * 0.6})`;
+                ctx.lineWidth = 0.7;
+                t.barkLines.forEach(bl => {
+                    ctx.beginPath();
+                    ctx.moveTo(cx - t.trunkW / 2 + 2, t.y + bl.y);
+                    ctx.quadraticCurveTo(cx + bl.curve, t.y + bl.y + 2, cx + t.trunkW / 2 - 2, t.y + bl.y + 1);
+                    ctx.stroke();
+                });
+            }
+
+            // Branches
+            if (t.branches) {
+                ctx.strokeStyle = `rgba(80, 50, 20, ${baseAlpha + 0.15})`;
+                ctx.lineCap = 'round';
+                t.branches.forEach(br => {
+                    const bStartY = t.y + t.h * br.yFrac;
+                    const bEndX = cx + br.side * br.len;
+                    const bEndY = bStartY - br.len * br.angle;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, bStartY);
+                    ctx.quadraticCurveTo(
+                        cx + br.side * br.len * 0.5,
+                        bStartY - br.len * 0.2,
+                        bEndX, bEndY
+                    );
+                    ctx.stroke();
+                });
             }
 
             // Canopy
             const greens = [
-                [22, 101, 52],  // dark
-                [34, 139, 34],  // mid
-                [74, 222, 128]  // light
+                [22, 101, 52],
+                [34, 139, 34],
+                [74, 222, 128]
             ];
             const gc = greens[t.leafShade];
             const canopyY = t.y - t.canopySize * 0.6;
 
             if (t.canopyType === 'round') {
-                // Multiple overlapping circles for organic feel
-                for (let i = 0; i < 3; i++) {
-                    const offX = (i - 1) * t.canopySize * 0.35;
-                    const offY = -i * 5;
-                    const r = t.canopySize * (0.7 + i * 0.1);
-                    const shade = Math.min(255, gc[1] + i * 15);
+                // Multiple overlapping circles with depth
+                for (let i = 0; i < 5; i++) {
+                    const offX = (i - 2) * t.canopySize * 0.28;
+                    const offY = -Math.abs(i - 2) * 6;
+                    const r = t.canopySize * (0.6 + (2 - Math.abs(i - 2)) * 0.12);
+                    const shade = Math.min(255, gc[1] + i * 10);
                     ctx.fillStyle = `rgba(${gc[0]}, ${shade}, ${gc[2]}, ${baseAlpha + 0.1})`;
                     ctx.beginPath();
                     ctx.arc(cx + offX, canopyY + offY, r, 0, Math.PI * 2);
                     ctx.fill();
                 }
+                // Canopy highlight
+                ctx.fillStyle = `rgba(${Math.min(255, gc[0] + 30)}, ${Math.min(255, gc[1] + 40)}, ${Math.min(255, gc[2] + 20)}, ${baseAlpha * 0.3})`;
+                ctx.beginPath();
+                ctx.arc(cx - t.canopySize * 0.15, canopyY - t.canopySize * 0.2, t.canopySize * 0.35, 0, Math.PI * 2);
+                ctx.fill();
             } else {
-                // Pine tree: stacked triangles
-                for (let i = 0; i < 3; i++) {
-                    const tier = t.canopySize * (1.2 - i * 0.25);
-                    const tierY = canopyY + i * t.canopySize * 0.4;
-                    const shade = Math.min(255, gc[1] + i * 20);
+                // Pine tree: stacked triangles with snow-tip feel
+                for (let i = 0; i < 4; i++) {
+                    const tier = t.canopySize * (1.3 - i * 0.2);
+                    const tierY = canopyY + i * t.canopySize * 0.35;
+                    const shade = Math.min(255, gc[1] + i * 15);
                     ctx.fillStyle = `rgba(${gc[0]}, ${shade}, ${gc[2]}, ${baseAlpha + 0.1})`;
                     ctx.beginPath();
                     ctx.moveTo(cx, tierY - tier * 0.6);
-                    ctx.lineTo(cx - tier, tierY + tier * 0.4);
-                    ctx.lineTo(cx + tier, tierY + tier * 0.4);
+                    ctx.lineTo(cx - tier, tierY + tier * 0.35);
+                    ctx.lineTo(cx + tier, tierY + tier * 0.35);
                     ctx.closePath();
                     ctx.fill();
                 }
             }
 
-            // Vines
+            // Leaf clusters on branches
+            if (t.leafClusters) {
+                t.leafClusters.forEach(lc => {
+                    const lcGC = greens[lc.shade];
+                    const bStartY = t.y + t.h * lc.yFrac;
+                    const bEndX = cx + lc.side * lc.len;
+                    const bEndY = bStartY - lc.len * lc.angle;
+                    ctx.fillStyle = `rgba(${lcGC[0]}, ${lcGC[1]}, ${lcGC[2]}, ${baseAlpha + 0.15})`;
+                    ctx.beginPath();
+                    ctx.arc(bEndX, bEndY, lc.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+
+            // Vines with leaflets
             if (t.vines) {
-                ctx.strokeStyle = `rgba(22, 163, 74, ${baseAlpha + 0.15})`;
-                ctx.lineWidth = 1;
                 t.vines.forEach(v => {
                     const vx = cx + v.xOff;
                     const vy = canopyY + t.canopySize * 0.3;
-                    const sway = Math.sin(animTime * 0.5 + v.sway) * 4;
+                    const sway = Math.sin(animTime * 0.5 + v.sway) * 5;
+                    ctx.strokeStyle = `rgba(22, 163, 74, ${baseAlpha + 0.15})`;
+                    ctx.lineWidth = 1.2;
                     ctx.beginPath();
                     ctx.moveTo(vx, vy);
                     ctx.quadraticCurveTo(vx + sway, vy + v.len * 0.5, vx + sway * 0.5, vy + v.len);
                     ctx.stroke();
+                    // Leaflets along vine
+                    if (v.leaflets) {
+                        ctx.fillStyle = `rgba(34, 197, 94, ${baseAlpha + 0.1})`;
+                        for (let vl = 0.3; vl < 1; vl += 0.3) {
+                            const lx = vx + sway * vl;
+                            const ly = vy + v.len * vl;
+                            ctx.beginPath();
+                            ctx.ellipse(lx + 3, ly, 3, 1.5, 0.5, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
                 });
             }
         }
@@ -1653,6 +2083,33 @@
             e.preventDefault();
             togglePause();
         });
+
+        function loseLife() {
+            lives--;
+            updateLivesUI();
+            if (lives <= 0) {
+                gameOver();
+                return;
+            }
+            // Respawn on nearest platform
+            invincibleTimer = 120; // ~2 seconds of invincibility
+            player.vy = 0;
+            player.vx = 0;
+            // Find nearest platform ahead of camera
+            let bestPlatform = platforms[0];
+            for (const p of platforms) {
+                if (p.x + p.w > cameraX && p.x < cameraX + canvas.width) {
+                    bestPlatform = p;
+                    break;
+                }
+            }
+            player.x = bestPlatform.x + bestPlatform.w * 0.3;
+            player.y = bestPlatform.y - player.height - 10;
+            player.isGrounded = false;
+            // Flash screen red
+            weather.flashOpacity = 0.4;
+            createParticles(player.x + player.width / 2, player.y + player.height / 2, 15, '#ef4444');
+        }
 
         function gameOver() {
             gameState = 'GAMEOVER';
