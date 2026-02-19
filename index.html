@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Horizon Runner: Urban Parkour</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'Inter', sans-serif;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* Cinematic UI */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 2rem;
+        }
+
+        .hud-panel {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            padding: 1rem 1.5rem;
+            color: white;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transform: skewX(-5deg);
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            pointer-events: auto;
+            transition: opacity 0.4s ease;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .btn-start {
+            background: white;
+            color: black;
+            padding: 1rem 3rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-start:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 40px rgba(255, 255, 255, 0.5);
+        }
+
+        .key-hint {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.2rem 0.6rem;
+            border-radius: 0.3rem;
+            font-size: 0.7rem;
+            margin: 0 0.2rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="game-container">
+
+        <!-- HUD -->
+        <div class="ui-layer">
+            <div class="flex justify-between w-full">
+                <div class="hud-panel">
+                    <div class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Distance</div>
+                    <div class="text-3xl font-black tabular-nums tracking-tighter"><span id="score-el">0</span><span
+                            class="text-sm text-slate-500 ml-1">m</span></div>
+                </div>
+                <div class="hud-panel text-right">
+                    <div class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Stamina</div>
+                    <div class="w-32 h-2 bg-slate-700 rounded-full mt-2 overflow-hidden">
+                        <div id="stamina-bar" class="h-full bg-emerald-400 w-full"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mobile Controls Hint -->
+            <div class="text-center text-slate-500 text-xs font-medium uppercase tracking-widest opacity-50 md:hidden">
+                Tap Left to Jump • Tap Right to Dash
+            </div>
+        </div>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="overlay">
+            <h1
+                class="text-6xl md:text-8xl font-black text-white mb-2 tracking-tighter uppercase italic drop-shadow-2xl">
+                Horizon</h1>
+            <h2 class="text-xl text-slate-400 uppercase tracking-[0.5em] font-light mb-12">Urban Parkour</h2>
+
+            <button id="start-btn" class="btn-start">
+                Begin Run
+            </button>
+
+            <div class="mt-8 text-slate-400 text-xs uppercase tracking-widest font-medium flex gap-6">
+                <span><span class="key-hint">SPACE</span> Jump</span>
+                <span><span class="key-hint">SHIFT</span> Dash</span>
+            </div>
+        </div>
+
+        <!-- Game Over -->
+        <div id="game-over-screen" class="overlay hidden">
+            <h2 class="text-5xl font-black text-white mb-4 uppercase tracking-tight">Critical Failure</h2>
+            <div class="text-center mb-10">
+                <div class="text-xs text-slate-400 uppercase tracking-widest mb-1">Total Distance</div>
+                <div class="text-6xl font-black text-white"><span id="final-score">0</span>m</div>
+            </div>
+            <button id="restart-btn" class="btn-start">
+                Retry
+            </button>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+
+        // UI Elements
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const scoreEl = document.getElementById('score-el');
+        const finalScoreEl = document.getElementById('final-score');
+        const staminaBar = document.getElementById('stamina-bar');
+
+        // Game Constants
+        const GRAVITY = 0.5;
+        const JUMP_FORCE = -12;
+        const SPEED_base = 6;
+        const DASH_SPEED = 10;
+        const DAY_CYCLE_LENGTH = 100000;
+
+        // Game State
+        let gameState = 'MENU';
+        let score = 0;
+        let cameraX = 0;
+        let gameSpeed = SPEED_base;
+        let animTime = 0;
+        let timeProgress = 0;
+        let lastStepTime = 0;
+        let frameCount = 0; // Fixed: Added global frameCount
+
+        // Player
+        const player = {
+            x: 100,
+            y: 0,
+            width: 30,
+            height: 50,
+            vx: 0,
+            vy: 0,
+            isGrounded: false,
+            stamina: 100,
+            color: '#fff',
+            trail: []
+        };
+
+        // World
+        let platforms = [];
+        let particles = [];
+        let backgroundBuildings = [];
+        let stars = [];
+
+        // Weather System
+        const weather = {
+            active: false,
+            intensity: 0, // 0 to 1
+            flashOpacity: 0,
+            nextChange: 600, // Frames until weather change logic
+            raindrops: [],
+            clouds: []
+        };
+
+        // --- AUDIO SYSTEM ---
+        const SoundSys = {
+            ctx: null,
+            noiseBuffer: null,
+            rainGain: null,
+            initialized: false,
+
+            init: function () {
+                if (this.initialized) return;
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContext();
+
+                // Create Noise Buffer
+                const bufferSize = this.ctx.sampleRate * 2;
+                this.noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const output = this.noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+
+                // Rain Sound Setup (Continuous loop, volume controlled by gain)
+                const rainSrc = this.ctx.createBufferSource();
+                rainSrc.buffer = this.noiseBuffer;
+                rainSrc.loop = true;
+                const rainFilter = this.ctx.createBiquadFilter();
+                rainFilter.type = 'lowpass';
+                rainFilter.frequency.value = 400; // Muffled rain sound
+                this.rainGain = this.ctx.createGain();
+                this.rainGain.gain.value = 0;
+
+                rainSrc.connect(rainFilter);
+                rainFilter.connect(this.rainGain);
+                this.rainGain.connect(this.ctx.destination);
+                rainSrc.start();
+
+                this.initialized = true;
+            },
+
+            updateWeatherAudio: function (intensity) {
+                if (!this.initialized) return;
+                // Smoothly transition rain volume
+                const targetVol = intensity * 0.3;
+                this.rainGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.5);
+            },
+
+            playThunder: function () {
+                if (!this.initialized) return;
+                const osc = this.ctx.createBufferSource();
+                osc.buffer = this.noiseBuffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 150; // Deep rumble
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.8, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.5); // Long decay
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 1.5);
+            },
+
+            playStep: function () {
+                if (!this.initialized) return;
+                const osc = this.ctx.createBufferSource();
+                osc.buffer = this.noiseBuffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 600;
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            },
+
+            playJump: function () {
+                if (!this.initialized) return;
+                const osc = this.ctx.createOscillator();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(300, this.ctx.currentTime + 0.2);
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.2);
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = this.noiseBuffer;
+                const noiseGain = this.ctx.createGain();
+                noiseGain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.connect(noiseGain);
+                noiseGain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+                noise.start();
+                noise.stop(this.ctx.currentTime + 0.3);
+            },
+
+            playLand: function () {
+                if (!this.initialized) return;
+                const osc = this.ctx.createBufferSource();
+                osc.buffer = this.noiseBuffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 300;
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+        };
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            initStars();
+            initClouds();
+        }
+        window.addEventListener('resize', resize);
+
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < 100; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height * 0.6,
+                    size: Math.random() * 2,
+                    alpha: Math.random()
+                });
+            }
+        }
+
+        function initClouds() {
+            weather.clouds = [];
+            for (let i = 0; i < 8; i++) {
+                weather.clouds.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height * 0.3,
+                    w: 100 + Math.random() * 200,
+                    h: 40 + Math.random() * 40,
+                    speed: 0.2 + Math.random() * 0.3
+                });
+            }
+        }
+        resize();
+
+        // --- Generation ---
+
+        function initGame() {
+            SoundSys.init();
+            if (SoundSys.ctx.state === 'suspended') SoundSys.ctx.resume();
+
+            player.x = 100;
+            player.y = canvas.height - 200;
+            player.vx = 0;
+            player.vy = 0;
+            player.stamina = 100;
+            score = 0;
+            cameraX = 0;
+            gameSpeed = SPEED_base;
+            animTime = 0;
+            timeProgress = 0;
+            lastStepTime = 0;
+            frameCount = 0;
+
+            platforms = [];
+            particles = [];
+            backgroundBuildings = [];
+
+            // Reset weather
+            weather.active = false;
+            weather.intensity = 0;
+            weather.flashOpacity = 0;
+            weather.raindrops = [];
+            initClouds();
+
+            platforms.push({ x: 0, y: canvas.height - 150, w: 1500, h: 600 });
+
+            for (let i = 0; i < 18; i++) {
+                backgroundBuildings.push(createBuilding(i * 120 - 200));
+            }
+
+            gameState = 'PLAYING';
+            scoreEl.innerText = '0';
+            updateStaminaUI();
+            loop();
+        }
+
+        function createBuilding(xOffset) {
+            const h = 150 + Math.random() * 350;
+            const w = 60 + Math.random() * 100;
+            const layer = Math.floor(Math.random() * 3);
+            const roofType = Math.floor(Math.random() * 3);
+            const windows = [];
+            if (layer > 0) {
+                const rows = Math.floor(h / 25);
+                const cols = Math.floor(w / 18);
+                const style = Math.random();
+
+                for (let r = 1; r < rows - 1; r++) {
+                    for (let c = 1; c < cols - 1; c++) {
+                        if ((style > 0.5 && Math.random() > 0.3) || (style <= 0.5 && (r + c) % 2 === 0)) {
+                            windows.push({
+                                x: c * 18,
+                                y: r * 25,
+                                w: 10,
+                                h: 16,
+                                lightSeed: Math.random()
+                            });
+                        }
+                    }
+                }
+            }
+
+            return {
+                x: xOffset,
+                y: canvas.height - h + 80,
+                w: w,
+                h: h,
+                layer: layer,
+                roofType: roofType,
+                windows: windows
+            };
+        }
+
+        // --- Physics & Logic ---
+
+        function update() {
+            frameCount++;
+            cameraX += gameSpeed;
+            timeProgress = (cameraX % DAY_CYCLE_LENGTH) / DAY_CYCLE_LENGTH;
+
+            // --- Weather Logic ---
+            // Randomly toggle weather state periodically
+            if (frameCount > weather.nextChange) {
+                weather.active = !weather.active;
+                // Next change in 10-30 seconds (assuming 60fps)
+                weather.nextChange = frameCount + 600 + Math.random() * 1200;
+            }
+
+            // Smoothly adjust intensity
+            if (weather.active && weather.intensity < 1) {
+                weather.intensity += 0.005;
+            } else if (!weather.active && weather.intensity > 0) {
+                weather.intensity -= 0.005;
+            }
+
+            // Update Audio based on weather
+            SoundSys.updateWeatherAudio(weather.intensity);
+
+            // Spawn Raindrops
+            if (weather.intensity > 0) {
+                // Spawn count scales with intensity
+                const spawnCount = Math.floor(weather.intensity * 5) + 1;
+                for (let i = 0; i < spawnCount; i++) {
+                    weather.raindrops.push({
+                        x: Math.random() * canvas.width + canvas.width * 0.2, // Offset for angle
+                        y: -20,
+                        vx: -3 - Math.random() * 2, // Wind blowing left
+                        vy: 10 + Math.random() * 5, // Fall speed
+                        l: 10 + Math.random() * 20  // Length
+                    });
+                }
+            }
+
+            // Update Raindrops
+            for (let i = weather.raindrops.length - 1; i >= 0; i--) {
+                let r = weather.raindrops[i];
+                r.x += r.vx;
+                r.y += r.vy;
+
+                // Collision with floor (simple visual approximation)
+                if (r.y > canvas.height - 100) {
+                    // Chance to splash
+                    if (Math.random() > 0.8) {
+                        createParticles(r.x, r.y, 1, 'rgba(200,200,255,0.5)');
+                    }
+                    weather.raindrops.splice(i, 1);
+                } else if (r.x < -50) {
+                    weather.raindrops.splice(i, 1);
+                }
+            }
+
+            // Thunder Logic
+            if (weather.intensity > 0.7) {
+                // Random chance for thunder (~every 5-10 seconds at max intensity)
+                if (Math.random() > 0.995) {
+                    weather.flashOpacity = 0.8;
+                    SoundSys.playThunder();
+                }
+            }
+            // Fade flash
+            if (weather.flashOpacity > 0) weather.flashOpacity -= 0.05;
+
+            // Move Clouds
+            weather.clouds.forEach(c => {
+                c.x -= c.speed;
+                if (c.x + c.w < 0) {
+                    c.x = canvas.width + Math.random() * 200;
+                    c.y = Math.random() * canvas.height * 0.3;
+                }
+            });
+
+            // --- Player Logic ---
+            player.x += player.vx + gameSpeed;
+            player.vy += GRAVITY;
+            player.y += player.vy;
+
+            if (player.isGrounded) {
+                animTime += 0.25;
+                if (Math.floor(animTime / 2.1) > lastStepTime) {
+                    SoundSys.playStep();
+                    lastStepTime = Math.floor(animTime / 2.1);
+                }
+            } else {
+                animTime = 0.5;
+                lastStepTime = 0;
+            }
+
+            player.isGrounded = false;
+            for (let p of platforms) {
+                if (
+                    player.x + player.width > p.x &&
+                    player.x < p.x + p.w &&
+                    player.y + player.height >= p.y &&
+                    player.y + player.height <= p.y + 25
+                ) {
+                    if (player.vy >= 0) {
+                        player.isGrounded = true;
+                        player.vy = 0;
+                        player.y = p.y - player.height;
+                        if (Math.random() > 0.9) createParticles(player.x + player.width / 2, player.y + player.height, 2, '#777');
+                        if (player.vy > 2) SoundSys.playLand();
+                    }
+                }
+            }
+
+            if (player.y > canvas.height) gameOver();
+
+            const rightmostPlatform = platforms[platforms.length - 1];
+            const rightmostX = rightmostPlatform.x + rightmostPlatform.w;
+
+            if (rightmostX < cameraX + canvas.width * 1.5) {
+                const gap = 100 + Math.random() * 150;
+                const w = 400 + Math.random() * 600;
+                let lastY = rightmostPlatform.y;
+                let newY = lastY + (Math.random() * 250 - 125);
+                newY = Math.max(canvas.height * 0.4, Math.min(canvas.height - 150, newY));
+
+                platforms.push({ x: rightmostX + gap, y: newY, w: w, h: 1000 });
+            }
+
+            if (platforms[0].x + platforms[0].w < cameraX - 200) {
+                platforms.shift();
+            }
+
+            backgroundBuildings.forEach(b => {
+                const parallaxSpeed = gameSpeed * (0.1 + b.layer * 0.1);
+                b.x -= parallaxSpeed;
+            });
+
+            if (backgroundBuildings.length > 0 && backgroundBuildings[0].x + backgroundBuildings[0].w < -100) {
+                backgroundBuildings.shift();
+            }
+
+            const bgRightmost = backgroundBuildings[backgroundBuildings.length - 1].x + backgroundBuildings[backgroundBuildings.length - 1].w;
+            if (bgRightmost < canvas.width + 100) {
+                backgroundBuildings.push(createBuilding(bgRightmost + 10 + Math.random() * 80));
+            }
+
+            if (player.stamina < 100) {
+                player.stamina += 0.15;
+                updateStaminaUI();
+            }
+
+            score = Math.floor(cameraX / 10);
+            scoreEl.innerText = score;
+
+            updateParticles();
+        }
+
+        function createParticles(x, y, count, color) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5,
+                    life: 1.0,
+                    color: color
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.04;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function updateStaminaUI() {
+            staminaBar.style.width = player.stamina + '%';
+        }
+
+        // --- Rendering Helpers ---
+
+        function interpolateColor(c1, c2, factor) {
+            const r = Math.round(c1[0] + (c2[0] - c1[0]) * factor);
+            const g = Math.round(c1[1] + (c2[1] - c1[1]) * factor);
+            const b = Math.round(c1[2] + (c2[2] - c1[2]) * factor);
+            return `rgb(${r},${g},${b})`;
+        }
+
+        function getSkyColor(progress) {
+            const sunsetTop = [15, 23, 42];
+            const sunsetBot = [202, 138, 4];
+            const nightTop = [2, 6, 23];
+            const nightBot = [15, 23, 42];
+            const sunriseTop = [56, 189, 248];
+            const sunriseBot = [253, 186, 116];
+
+            if (progress < 0.25) {
+                const t = progress / 0.25;
+                return {
+                    top: interpolateColor(sunsetTop, nightTop, t),
+                    bot: interpolateColor(sunsetBot, nightBot, t),
+                    alpha: 1 - t
+                };
+            } else if (progress < 0.75) {
+                return {
+                    top: `rgb(${nightTop.join(',')})`,
+                    bot: `rgb(${nightBot.join(',')})`,
+                    alpha: 0
+                };
+            } else {
+                const t = (progress - 0.75) / 0.25;
+                return {
+                    top: interpolateColor(nightTop, sunriseTop, t),
+                    bot: interpolateColor(nightBot, sunriseBot, t),
+                    alpha: t
+                };
+            }
+        }
+
+        function drawCharacter(x, y, w, h) {
+            const centerX = x + w / 2;
+            const centerY = y + h / 2;
+
+            const runCycle = animTime * 1.5;
+            const isJumping = !player.isGrounded;
+            const bounce = isJumping ? 0 : Math.abs(Math.cos(runCycle)) * 2;
+            const bodyY = y + bounce;
+
+            ctx.save();
+
+            const scarfBaseX = centerX;
+            const scarfBaseY = bodyY + 12;
+            const flowX = -15 - (gameSpeed * 1.5) - (player.vx * 2);
+            const flowY = -5 + (player.vy * 2) + Math.sin(animTime * 3) * 5;
+
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.moveTo(scarfBaseX - 2, scarfBaseY);
+            ctx.quadraticCurveTo(scarfBaseX + flowX / 2, scarfBaseY + flowY - 5, scarfBaseX + flowX, scarfBaseY + flowY);
+            ctx.lineTo(scarfBaseX + flowX, scarfBaseY + flowY + 8);
+            ctx.quadraticCurveTo(scarfBaseX + flowX / 2, scarfBaseY + flowY + 5, scarfBaseX + 2, scarfBaseY + 4);
+            ctx.fill();
+
+            const lLegAngle = isJumping ? 0.5 : Math.sin(runCycle + Math.PI) * 0.8;
+            drawLimb(centerX, bodyY + h / 2 - 10, lLegAngle, '#64748b', 6, 14, 14);
+
+            const lArmAngle = isJumping ? -0.5 : Math.sin(runCycle) * 0.8;
+            drawLimb(centerX, bodyY + 15, lArmAngle, '#64748b', 5, 12, 10);
+
+            ctx.fillStyle = '#f1f5f9';
+            ctx.beginPath();
+            ctx.roundRect(centerX - w / 2 + 2, bodyY + 10, w - 4, h * 0.35, 4);
+            ctx.fill();
+
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.roundRect(centerX - w / 2 + 4, bodyY + 10 + h * 0.35, w - 8, h * 0.15, 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#0ea5e9';
+            ctx.shadowColor = '#0ea5e9';
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.arc(centerX, bodyY + 18, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = '#e2e8f0';
+            ctx.beginPath();
+            ctx.arc(centerX, bodyY + 5, 9, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.roundRect(centerX + 2, bodyY + 2, 7, 5, 2);
+            ctx.fill();
+            ctx.fillStyle = '#f43f5e';
+            ctx.shadowColor = '#f43f5e';
+            ctx.shadowBlur = 5;
+            ctx.fillRect(centerX + 4, bodyY + 3.5, 4, 1.5);
+            ctx.shadowBlur = 0;
+
+            const rLegAngle = isJumping ? -0.8 : Math.sin(runCycle) * 0.8;
+            drawLimb(centerX, bodyY + h / 2 - 10, rLegAngle, '#cbd5e1', 6, 14, 14);
+
+            const rArmAngle = isJumping ? -2.5 : Math.sin(runCycle + Math.PI) * 0.8;
+            drawLimb(centerX, bodyY + 15, rArmAngle, '#cbd5e1', 5, 12, 10);
+
+            ctx.restore();
+        }
+
+        function drawLimb(x, y, angle, color, width, len1, len2) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, len1);
+            ctx.stroke();
+            const jointBend = Math.max(0.1, angle * 1.5 + 0.5);
+            ctx.translate(0, len1);
+            ctx.rotate(jointBend);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, len2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function draw() {
+            const sky = getSkyColor(timeProgress);
+
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, sky.top);
+            gradient.addColorStop(1, sky.bot);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Sun
+            if (timeProgress < 0.35) {
+                const sunY = canvas.height * 0.3 + (timeProgress * canvas.height * 2.0);
+                const alpha = Math.max(0, 1 - timeProgress * 3);
+
+                ctx.save();
+                ctx.fillStyle = `rgba(255, 160, 50, ${alpha * 0.1})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const glow = ctx.createRadialGradient(canvas.width * 0.8, sunY, 40, canvas.width * 0.8, sunY, 400);
+                glow.addColorStop(0, `rgba(255, 200, 100, ${alpha * 0.4})`);
+                glow.addColorStop(1, `rgba(255, 100, 50, 0)`);
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(canvas.width * 0.8, sunY, 400, 0, Math.PI * 2);
+                ctx.fill();
+
+                const sun = ctx.createRadialGradient(canvas.width * 0.8, sunY, 10, canvas.width * 0.8, sunY, 100);
+                sun.addColorStop(0, `rgba(255, 255, 240, ${alpha})`);
+                sun.addColorStop(0.2, `rgba(255, 220, 100, ${alpha})`);
+                sun.addColorStop(0.6, `rgba(255, 140, 0, ${alpha * 0.5})`);
+                sun.addColorStop(1, `rgba(255, 100, 0, 0)`);
+
+                ctx.fillStyle = sun;
+                ctx.beginPath();
+                ctx.arc(canvas.width * 0.8, sunY, 100, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Moon
+            if (timeProgress > 0.1) {
+                const moonY = canvas.height * 1.2 - (timeProgress * canvas.height * 0.9);
+                const moonX = canvas.width * 0.2 + (timeProgress * 100);
+
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.shadowColor = 'white';
+                ctx.shadowBlur = 20;
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, 40, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            // Stars
+            if (timeProgress > 0.2 && timeProgress < 0.8) {
+                const starOpacity = timeProgress > 0.3 && timeProgress < 0.7 ? 1 : 0.5;
+                ctx.fillStyle = `rgba(255, 255, 255, ${starOpacity})`;
+                stars.forEach(s => {
+                    ctx.globalAlpha = Math.random() * s.alpha * starOpacity;
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1.0;
+            }
+
+            // Clouds (Weather)
+            weather.clouds.forEach(c => {
+                // Clouds get darker during storms
+                const stormDarkness = weather.intensity * 100;
+                ctx.fillStyle = `rgba(${255 - stormDarkness}, ${255 - stormDarkness}, ${255 - stormDarkness}, 0.3)`;
+                ctx.beginPath();
+                ctx.roundRect(c.x, c.y, c.w, c.h, 20);
+                ctx.fill();
+            });
+
+            // Buildings
+            backgroundBuildings.forEach(b => {
+                const bGrad = ctx.createLinearGradient(b.x, b.y, b.x + b.w, b.y);
+                const baseAlpha = 0.3 + b.layer * 0.2;
+                bGrad.addColorStop(0, `rgba(15, 23, 42, ${baseAlpha})`);
+                bGrad.addColorStop(0.5, `rgba(30, 41, 59, ${baseAlpha})`);
+                bGrad.addColorStop(1, `rgba(15, 23, 42, ${baseAlpha})`);
+
+                ctx.fillStyle = bGrad;
+                ctx.fillRect(b.x, b.y, b.w, b.h);
+
+                ctx.fillStyle = `rgba(15, 23, 42, ${baseAlpha + 0.1})`;
+                if (b.roofType === 1) {
+                    ctx.fillRect(b.x + b.w / 2 - 2, b.y - 20, 4, 20);
+                } else if (b.roofType === 2) {
+                    ctx.beginPath();
+                    ctx.moveTo(b.x, b.y);
+                    ctx.lineTo(b.x + b.w, b.y);
+                    ctx.lineTo(b.x + b.w, b.y - 15);
+                    ctx.fill();
+                }
+
+                const isNight = timeProgress > 0.25 && timeProgress < 0.75;
+                const isStormy = weather.intensity > 0.5; // Lights on during storms too
+
+                if (b.windows) {
+                    b.windows.forEach(win => {
+                        let lightOn = false;
+                        if (isNight || isStormy) {
+                            lightOn = win.lightSeed > 0.4;
+                        }
+
+                        if (lightOn) {
+                            ctx.fillStyle = `rgba(253, 224, 71, ${0.4 + b.layer * 0.2})`;
+                            ctx.shadowColor = '#facc15';
+                            ctx.shadowBlur = 5;
+                        } else {
+                            ctx.fillStyle = `rgba(0,0,0,0.4)`;
+                            ctx.shadowBlur = 0;
+                        }
+                        ctx.fillRect(b.x + win.x, b.y + win.y, win.w, win.h);
+                        ctx.shadowBlur = 0;
+                    });
+                }
+            });
+
+            ctx.save();
+            ctx.translate(-cameraX, 0);
+
+            // Platforms
+            ctx.fillStyle = '#1e293b';
+            platforms.forEach(p => {
+                ctx.fillRect(p.x, p.y, p.w, p.h);
+                ctx.fillStyle = '#475569';
+                ctx.fillRect(p.x, p.y, p.w, 4);
+
+                ctx.fillStyle = '#334155';
+                for (let lx = 50; lx < p.w; lx += 100) {
+                    ctx.fillRect(p.x + lx, p.y + 10, 5, p.h - 20);
+                }
+                ctx.fillStyle = '#1e293b';
+            });
+
+            drawCharacter(player.x, player.y, player.width, player.height);
+
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+
+            ctx.restore();
+
+            // Rain (Foreground)
+            if (weather.intensity > 0) {
+                ctx.strokeStyle = `rgba(170, 200, 255, ${weather.intensity * 0.5})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                weather.raindrops.forEach(r => {
+                    ctx.moveTo(r.x, r.y);
+                    ctx.lineTo(r.x + r.vx * 2, r.y + r.l);
+                });
+                ctx.stroke();
+            }
+
+            // Vignette & Flash
+            const vignetteAlpha = 0.3 + (timeProgress > 0.2 && timeProgress < 0.8 ? 0.3 : 0);
+            const grad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.height / 2, canvas.width / 2, canvas.height / 2, canvas.height);
+            grad.addColorStop(0, 'transparent');
+            grad.addColorStop(1, `rgba(0,0,0,${vignetteAlpha})`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Lightning Flash
+            if (weather.flashOpacity > 0.01) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${weather.flashOpacity})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function loop() {
+            if (gameState === 'PLAYING') {
+                update();
+                draw();
+                requestAnimationFrame(loop);
+            }
+        }
+
+        function gameOver() {
+            gameState = 'GAMEOVER';
+            gameOverScreen.classList.remove('hidden');
+            finalScoreEl.innerText = score;
+            if (SoundSys.initialized && SoundSys.rainGain) {
+                SoundSys.rainGain.gain.exponentialRampToValueAtTime(0.001, SoundSys.ctx.currentTime + 1);
+            }
+        }
+
+        function jump() {
+            if (gameState !== 'PLAYING') return;
+            if (player.isGrounded) {
+                player.vy = JUMP_FORCE;
+                createParticles(player.x + player.width / 2, player.y + player.height, 5, '#fff');
+                SoundSys.playJump();
+            }
+        }
+
+        function dash() {
+            if (gameState !== 'PLAYING') return;
+            if (player.stamina >= 30) {
+                player.stamina -= 30;
+                player.x += 100; // Blink forward
+                createParticles(player.x, player.y + player.height / 2, 10, '#6366f1');
+                updateStaminaUI();
+            }
+        }
+
+        window.addEventListener('keydown', e => {
+            if (e.code === 'Space' || e.code === 'ArrowUp') jump();
+            if (e.code === 'ShiftLeft' || e.code === 'ArrowRight') dash();
+        });
+
+        window.addEventListener('touchstart', e => {
+            const touchX = e.touches[0].clientX;
+            if (touchX < window.innerWidth / 2) jump();
+            else dash();
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            startScreen.classList.add('hidden');
+            initGame();
+        });
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            gameOverScreen.classList.add('hidden');
+            initGame();
+        });
+
+    </script>
+</body>
+
+</html>
