@@ -100,6 +100,121 @@
             font-size: 0.7rem;
             margin: 0 0.2rem;
         }
+
+        /* ── Mobile Touch Controls ── */
+        .touch-controls {
+            display: none;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 1rem 1.5rem 1.5rem;
+            justify-content: space-between;
+            z-index: 40;
+            pointer-events: none;
+        }
+
+        .touch-btn {
+            pointer-events: auto;
+            width: clamp(80px, 22vw, 130px);
+            height: clamp(60px, 14vh, 90px);
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 1rem;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: 'Inter', sans-serif;
+            font-weight: 800;
+            font-size: clamp(0.6rem, 2.5vw, 0.85rem);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+
+        .touch-btn:active {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(0.93);
+        }
+
+        .touch-btn .icon {
+            font-size: clamp(1.2rem, 4vw, 1.6rem);
+        }
+
+        /* Portrait Warning */
+        .portrait-warning {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.92);
+            color: white;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .portrait-warning .rotate-icon {
+            font-size: 3rem;
+            animation: rotateHint 2s ease-in-out infinite;
+        }
+
+        @keyframes rotateHint {
+
+            0%,
+            100% {
+                transform: rotate(0deg);
+            }
+
+            50% {
+                transform: rotate(90deg);
+            }
+        }
+
+        /* ── Responsive: show touch controls on touch devices ── */
+        @media (hover: none) and (pointer: coarse) {
+            .touch-controls {
+                display: flex;
+            }
+
+            .key-hint-row {
+                display: none !important;
+            }
+        }
+
+        /* ── Responsive: small screens ── */
+        @media (max-width: 640px) {
+            .ui-layer {
+                padding: 0.75rem;
+            }
+
+            .hud-panel {
+                padding: 0.5rem 0.75rem;
+                border-radius: 0.6rem;
+                transform: skewX(-3deg);
+            }
+        }
+
+        /* ── Portrait orientation on mobile ── */
+        @media (orientation: portrait) and (hover: none) and (pointer: coarse) {
+            .portrait-warning {
+                display: flex;
+            }
+
+            #game-container {
+                filter: blur(6px);
+            }
+        }
     </style>
 </head>
 
@@ -123,24 +238,46 @@
                 </div>
             </div>
 
-            <!-- Mobile Controls Hint -->
-            <div class="text-center text-slate-500 text-xs font-medium uppercase tracking-widest opacity-50 md:hidden">
+            <!-- Mobile Controls Hint (desktop-only keyboard hints) -->
+            <div
+                class="key-hint-row text-center text-slate-500 text-xs font-medium uppercase tracking-widest opacity-50 md:hidden">
                 Tap Left to Jump • Tap Right to Dash
             </div>
+        </div>
+
+        <!-- Mobile On-Screen Touch Buttons -->
+        <div class="touch-controls" id="touch-controls">
+            <button class="touch-btn" id="touch-jump">
+                <span class="icon">⬆</span>
+                JUMP
+            </button>
+            <button class="touch-btn" id="touch-dash">
+                <span class="icon">⚡</span>
+                DASH
+            </button>
+        </div>
+
+        <!-- Portrait Rotation Warning -->
+        <div class="portrait-warning" id="portrait-warning">
+            <div class="rotate-icon">📱</div>
+            <div class="text-lg font-bold uppercase tracking-widest">Rotate Your Device</div>
+            <div class="text-sm text-slate-400">This game is best played in landscape mode</div>
         </div>
 
         <!-- Start Screen -->
         <div id="start-screen" class="overlay">
             <h1
-                class="text-6xl md:text-8xl font-black text-white mb-2 tracking-tighter uppercase italic drop-shadow-2xl">
+                class="text-4xl sm:text-6xl md:text-8xl font-black text-white mb-2 tracking-tighter uppercase italic drop-shadow-2xl">
                 Horizon</h1>
-            <h2 class="text-xl text-slate-400 uppercase tracking-[0.5em] font-light mb-12">Urban Parkour</h2>
+            <h2 class="text-base sm:text-xl text-slate-400 uppercase tracking-[0.5em] font-light mb-8 sm:mb-12">Urban
+                Parkour</h2>
 
             <button id="start-btn" class="btn-start">
                 Begin Run
             </button>
 
-            <div class="mt-8 text-slate-400 text-xs uppercase tracking-widest font-medium flex gap-6">
+            <div
+                class="key-hint-row mt-6 sm:mt-8 text-slate-400 text-xs uppercase tracking-widest font-medium flex gap-6">
                 <span><span class="key-hint">SPACE</span> Jump</span>
                 <span><span class="key-hint">SHIFT</span> Dash</span>
             </div>
@@ -148,10 +285,10 @@
 
         <!-- Game Over -->
         <div id="game-over-screen" class="overlay hidden">
-            <h2 class="text-5xl font-black text-white mb-4 uppercase tracking-tight">Critical Failure</h2>
-            <div class="text-center mb-10">
+            <h2 class="text-3xl sm:text-5xl font-black text-white mb-4 uppercase tracking-tight">Critical Failure</h2>
+            <div class="text-center mb-6 sm:mb-10">
                 <div class="text-xs text-slate-400 uppercase tracking-widest mb-1">Total Distance</div>
-                <div class="text-6xl font-black text-white"><span id="final-score">0</span>m</div>
+                <div class="text-4xl sm:text-6xl font-black text-white"><span id="final-score">0</span>m</div>
             </div>
             <button id="restart-btn" class="btn-start">
                 Retry
@@ -188,6 +325,7 @@
         let timeProgress = 0;
         let lastStepTime = 0;
         let frameCount = 0; // Fixed: Added global frameCount
+        let lastTime = 0; // For delta-time normalization
 
         // Player
         const player = {
@@ -348,6 +486,9 @@
             initClouds();
         }
         window.addEventListener('resize', resize);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resize, 150);
+        });
 
         function initStars() {
             stars = [];
@@ -393,6 +534,7 @@
             timeProgress = 0;
             lastStepTime = 0;
             frameCount = 0;
+            lastTime = 0;
 
             platforms = [];
             particles = [];
@@ -414,7 +556,7 @@
             gameState = 'PLAYING';
             scoreEl.innerText = '0';
             updateStaminaUI();
-            loop();
+            requestAnimationFrame(loop);
         }
 
         function createBuilding(xOffset) {
@@ -456,9 +598,9 @@
 
         // --- Physics & Logic ---
 
-        function update() {
+        function update(dt) {
             frameCount++;
-            cameraX += gameSpeed;
+            cameraX += gameSpeed * dt;
             timeProgress = (cameraX % DAY_CYCLE_LENGTH) / DAY_CYCLE_LENGTH;
 
             // --- Weather Logic ---
@@ -471,9 +613,9 @@
 
             // Smoothly adjust intensity
             if (weather.active && weather.intensity < 1) {
-                weather.intensity += 0.005;
+                weather.intensity += 0.005 * dt;
             } else if (!weather.active && weather.intensity > 0) {
-                weather.intensity -= 0.005;
+                weather.intensity -= 0.005 * dt;
             }
 
             // Update Audio based on weather
@@ -497,8 +639,8 @@
             // Update Raindrops
             for (let i = weather.raindrops.length - 1; i >= 0; i--) {
                 let r = weather.raindrops[i];
-                r.x += r.vx;
-                r.y += r.vy;
+                r.x += r.vx * dt;
+                r.y += r.vy * dt;
 
                 // Collision with floor (simple visual approximation)
                 if (r.y > canvas.height - 100) {
@@ -521,11 +663,11 @@
                 }
             }
             // Fade flash
-            if (weather.flashOpacity > 0) weather.flashOpacity -= 0.05;
+            if (weather.flashOpacity > 0) weather.flashOpacity -= 0.05 * dt;
 
             // Move Clouds
             weather.clouds.forEach(c => {
-                c.x -= c.speed;
+                c.x -= c.speed * dt;
                 if (c.x + c.w < 0) {
                     c.x = canvas.width + Math.random() * 200;
                     c.y = Math.random() * canvas.height * 0.3;
@@ -533,12 +675,12 @@
             });
 
             // --- Player Logic ---
-            player.x += player.vx + gameSpeed;
-            player.vy += GRAVITY;
-            player.y += player.vy;
+            player.x += (player.vx + gameSpeed) * dt;
+            player.vy += GRAVITY * dt;
+            player.y += player.vy * dt;
 
             if (player.isGrounded) {
-                animTime += 0.25;
+                animTime += 0.25 * dt;
                 if (Math.floor(animTime / 2.1) > lastStepTime) {
                     SoundSys.playStep();
                     lastStepTime = Math.floor(animTime / 2.1);
@@ -587,7 +729,7 @@
 
             backgroundBuildings.forEach(b => {
                 const parallaxSpeed = gameSpeed * (0.1 + b.layer * 0.1);
-                b.x -= parallaxSpeed;
+                b.x -= parallaxSpeed * dt;
             });
 
             if (backgroundBuildings.length > 0 && backgroundBuildings[0].x + backgroundBuildings[0].w < -100) {
@@ -600,14 +742,14 @@
             }
 
             if (player.stamina < 100) {
-                player.stamina += 0.15;
+                player.stamina += 0.15 * dt;
                 updateStaminaUI();
             }
 
             score = Math.floor(cameraX / 10);
             scoreEl.innerText = score;
 
-            updateParticles();
+            updateParticles(dt);
         }
 
         function createParticles(x, y, count, color) {
@@ -622,12 +764,12 @@
             }
         }
 
-        function updateParticles() {
+        function updateParticles(dt) {
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                p.life -= 0.04;
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.life -= 0.04 * dt;
                 if (p.life <= 0) particles.splice(i, 1);
             }
         }
@@ -949,9 +1091,15 @@
             }
         }
 
-        function loop() {
+        function loop(timestamp) {
             if (gameState === 'PLAYING') {
-                update();
+                // Delta-time: dt = 1.0 at 60fps, scales proportionally
+                if (lastTime === 0) lastTime = timestamp;
+                const elapsed = timestamp - lastTime;
+                lastTime = timestamp;
+                // Clamp dt to avoid spiral-of-death on tab switch (max ~3 frames)
+                const dt = Math.min(elapsed / (1000 / 60), 3);
+                update(dt);
                 draw();
                 requestAnimationFrame(loop);
             }
@@ -985,23 +1133,60 @@
             }
         }
 
+        // ── Keyboard Input ──
         window.addEventListener('keydown', e => {
-            if (e.code === 'Space' || e.code === 'ArrowUp') jump();
-            if (e.code === 'ShiftLeft' || e.code === 'ArrowRight') dash();
+            if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); jump(); }
+            if (e.code === 'ShiftLeft' || e.code === 'ArrowRight') { e.preventDefault(); dash(); }
         });
 
-        window.addEventListener('touchstart', e => {
+        // ── Mobile Touch Input ──
+        const touchJumpBtn = document.getElementById('touch-jump');
+        const touchDashBtn = document.getElementById('touch-dash');
+
+        // On-screen button handlers (multi-touch safe)
+        touchJumpBtn.addEventListener('touchstart', e => {
+            e.preventDefault();
+            jump();
+        }, { passive: false });
+
+        touchDashBtn.addEventListener('touchstart', e => {
+            e.preventDefault();
+            dash();
+        }, { passive: false });
+
+        // Fallback: tap anywhere on canvas (left half = jump, right half = dash)
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
             const touchX = e.touches[0].clientX;
             if (touchX < window.innerWidth / 2) jump();
             else dash();
-        });
+        }, { passive: false });
 
+        // Prevent default touch behaviors on the game container
+        document.getElementById('game-container').addEventListener('touchmove', e => {
+            e.preventDefault();
+        }, { passive: false });
+
+        // ── UI Buttons ──
         document.getElementById('start-btn').addEventListener('click', () => {
             startScreen.classList.add('hidden');
             initGame();
         });
 
+        // Also handle touch for start button explicitly
+        document.getElementById('start-btn').addEventListener('touchend', e => {
+            e.preventDefault();
+            startScreen.classList.add('hidden');
+            initGame();
+        });
+
         document.getElementById('restart-btn').addEventListener('click', () => {
+            gameOverScreen.classList.add('hidden');
+            initGame();
+        });
+
+        document.getElementById('restart-btn').addEventListener('touchend', e => {
+            e.preventDefault();
             gameOverScreen.classList.add('hidden');
             initGame();
         });
