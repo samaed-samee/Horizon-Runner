@@ -376,8 +376,8 @@
         const player = {
             x: 100,
             y: 0,
-            width: 34,
-            height: 60,
+            width: 25,
+            height: 70,
             vx: 0,
             vy: 0,
             isGrounded: false,
@@ -1272,7 +1272,8 @@
         function drawCharacter(x, y, w, h) {
             const centerX = x + w / 2;
             const centerY = y + h / 2;
-            const runCycle = animTime * 1.5;
+            // Slowed down run cycle from 1.5 to 1.15
+            const runCycle = animTime * 1.15;
             const isJumping = !player.isGrounded;
             const bounce = isJumping ? 0 : Math.abs(Math.cos(runCycle)) * 2;
             const bodyY = y + bounce;
@@ -1298,229 +1299,350 @@
             if (!isJumping) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
                 ctx.beginPath();
-                ctx.ellipse(centerX, bodyY + h - 5, 20 + Math.abs(Math.sin(runCycle)) * 8, 4, 0, 0, Math.PI * 2);
+                ctx.ellipse(centerX, bodyY + h - 2, 18 + Math.abs(Math.sin(runCycle)) * 6, 3.5, 0, 0, Math.PI * 2);
                 ctx.fill();
             }
 
-            // Scarf (behind)
-            const scarfBaseX = centerX;
-            const scarfBaseY = bodyY + 12;
-            const flowX = -15 - (gameSpeed * 1.5) - (player.vx * 2);
-            const flowY = -5 + (player.vy * 2) + Math.sin(animTime * 4) * 6;
+            const hipsX = centerX;
+            const hipsY = bodyY + 38;
 
-            // Scarf glow
-            ctx.shadowColor = '#f43f5e';
-            ctx.shadowBlur = 10;
-            ctx.fillStyle = '#f43f5e';
+            let leanAngle, lThighAngle, rThighAngle, lKneeBend, rKneeBend, lShoulderAngle, rShoulderAngle, lElbowBend, rElbowBend;
+
+            if (isJumping) {
+                const vyNorm = Math.min(1, Math.max(-1, player.vy / 10)); // -1 (going up) to 1 (falling)
+
+                // Parkour jump poses (e.g. Kong vault / stride leap)
+                leanAngle = 0.4 - vyNorm * 0.3; // Lean forward on jump launch, straighten on fall
+
+                // Left leg (back) tucks up/forward
+                lThighAngle = -1.0 + vyNorm * 0.4;
+                lKneeBend = 1.8 - vyNorm * 0.5;
+
+                // Right leg (front) straightens and trails behind, then braces for impact
+                rThighAngle = 0.8 - vyNorm * 1.2;
+                rKneeBend = Math.max(0.1, 0.2 + vyNorm * 0.4);
+
+                // Arms parkour style (swung high up on launch, windmill down on fall)
+                lShoulderAngle = -2.5 + vyNorm * 2.5;
+                lElbowBend = -0.5 - Math.max(0, vyNorm * 0.3);
+
+                rShoulderAngle = -1.8 + vyNorm * 2.5;
+                rElbowBend = -1.2;
+
+            } else {
+                leanAngle = 0.3 + Math.sin(runCycle * 2) * 0.03;
+
+                // --- Realistic Run Animation Angles ---
+                const sprintMult = 1.3;
+
+                // Legs: max forward at 0/2PI, max backward at PI
+                lThighAngle = -Math.cos(runCycle + Math.PI) * sprintMult;
+                rThighAngle = -Math.cos(runCycle) * sprintMult;
+
+                // Knee is practically straight while pushing against the ground (sin is positive -> negative bend -> capped at 0.05)
+                // Knee tucks up high during the air-recovery phase (sin is negative -> positive bend -> max 2.2)
+                lKneeBend = Math.max(0.05, Math.min(2.2, 0.4 - Math.sin(runCycle + Math.PI) * 2.0));
+                rKneeBend = Math.max(0.05, Math.min(2.2, 0.4 - Math.sin(runCycle) * 2.0));
+
+                // Arms swing opposite to legs
+                const armMult = 1.4;
+                lShoulderAngle = -Math.cos(runCycle) * armMult;
+                rShoulderAngle = -Math.cos(runCycle + Math.PI) * armMult;
+
+                // Elbows bend tightest (~90 deg) when arm is swung forward (cos is near 1)
+                // and straighten out more when swung back
+                lElbowBend = Math.max(-2.0, Math.min(-0.2, -1.0 - Math.cos(runCycle) * 1.0));
+                rElbowBend = Math.max(-2.0, Math.min(-0.2, -1.0 - Math.cos(runCycle + Math.PI) * 1.0));
+            }
+
+            ctx.save();
+            ctx.translate(hipsX, hipsY);
+
+            // Back Arm (Left)
+            ctx.save();
+            ctx.rotate(leanAngle);
+            ctx.translate(0, -24); // move to shoulder
+            ctx.rotate(-leanAngle); // un-lean so arm hangs straight down at angle 0
+            drawArm(0, 0, lShoulderAngle, lElbowBend, '#cbd5e1', '#fed7aa', false);
+            ctx.restore();
+
+            // Back Leg (Left)
+            drawLeg(0, 0, lThighAngle, lKneeBend, '#1e293b', '#0f172a');
+
+            // Torso (Context is at hips, rotated by lean)
+            ctx.save();
+            ctx.rotate(leanAngle);
+
+            // Shirt Base
+            ctx.fillStyle = '#f8fafc';
             ctx.beginPath();
-            ctx.moveTo(scarfBaseX - 2, scarfBaseY);
-            ctx.quadraticCurveTo(scarfBaseX + flowX * 0.4, scarfBaseY + flowY - 8, scarfBaseX + flowX, scarfBaseY + flowY);
-            ctx.lineTo(scarfBaseX + flowX + 3, scarfBaseY + flowY + 10);
-            ctx.quadraticCurveTo(scarfBaseX + flowX * 0.5, scarfBaseY + flowY + 6, scarfBaseX + 2, scarfBaseY + 4);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            // Second scarf tail
-            ctx.fillStyle = '#be123c';
-            ctx.beginPath();
-            ctx.moveTo(scarfBaseX, scarfBaseY + 2);
-            ctx.quadraticCurveTo(scarfBaseX + flowX * 0.3, scarfBaseY + flowY + 5, scarfBaseX + flowX * 0.7, scarfBaseY + flowY + 12);
-            ctx.lineTo(scarfBaseX + flowX * 0.7 + 2, scarfBaseY + flowY + 18);
-            ctx.quadraticCurveTo(scarfBaseX + flowX * 0.2, scarfBaseY + flowY + 10, scarfBaseX + 2, scarfBaseY + 6);
-            ctx.fill();
-
-            // Back leg
-            const lLegAngle = isJumping ? 0.5 : Math.sin(runCycle + Math.PI) * 0.8;
-            drawLimb(centerX, bodyY + h / 2 - 10, lLegAngle, '#475569', 6, 15, 15);
-            // Back shoe
-            drawShoe(centerX, bodyY + h / 2 - 10, lLegAngle, 15, 15, '#1e293b');
-
-            // Back arm
-            const lArmAngle = isJumping ? -0.5 : Math.sin(runCycle) * 0.8;
-            drawLimb(centerX, bodyY + 15, lArmAngle, '#475569', 5, 13, 11);
-
-            // Backpack ( cyberpunk style )
-            ctx.fillStyle = '#0f172a';
-            ctx.beginPath();
-            ctx.roundRect(centerX - w / 2 - 6, bodyY + 12, 8, 20, 3);
-            ctx.fill();
-            // Backpack glow
-            ctx.fillStyle = '#0ea5e9';
-            ctx.shadowColor = '#0ea5e9';
-            ctx.shadowBlur = 5;
-            ctx.fillRect(centerX - w / 2 - 8, bodyY + 16, 3, 8);
-            ctx.shadowBlur = 0;
-
-            // Hoodie / Body Base
-            const bodyGrad = ctx.createLinearGradient(centerX - w / 2, bodyY, centerX + w / 2, bodyY + h * 0.4);
-            bodyGrad.addColorStop(0, '#f1f5f9');
-            bodyGrad.addColorStop(1, '#94a3b8');
-            ctx.fillStyle = bodyGrad;
-            ctx.beginPath();
-            ctx.roundRect(centerX - w / 2 + 2, bodyY + 10, w - 2, h * 0.38, 5);
-            ctx.fill();
-
-            // Jacket design lines
-            ctx.strokeStyle = '#64748b';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(centerX - 4, bodyY + 10);
-            ctx.lineTo(centerX - 8, bodyY + 30);
-            ctx.stroke();
-
-            // Hoodie hood (behind head)
-            ctx.fillStyle = '#cbd5e1';
-            ctx.beginPath();
-            ctx.arc(centerX, bodyY + 8, 12, Math.PI, 0);
-            ctx.fill();
-
-            // Hoodie drawstrings
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(centerX + 6, bodyY + 16);
-            ctx.quadraticCurveTo(centerX + 8, bodyY + 22, centerX + 6 + Math.sin(animTime * 5) * 2, bodyY + 26);
-            ctx.stroke();
-
-            // Belt
-            ctx.fillStyle = '#0f172a';
-            ctx.beginPath();
-            ctx.roundRect(centerX - w / 2 + 3, bodyY + 10 + h * 0.35, w - 4, h * 0.12, 2);
-            ctx.fill();
-
-            // Belt pouches
-            ctx.fillStyle = '#334155';
-            ctx.fillRect(centerX - 10, bodyY + 12 + h * 0.35, 6, 8);
-            ctx.fillRect(centerX + 4, bodyY + 12 + h * 0.35, 8, 8);
-
-            // Tech emblem glow
-            ctx.fillStyle = '#0ea5e9';
-            ctx.shadowColor = '#0ea5e9';
-            ctx.shadowBlur = 12;
-            ctx.beginPath();
-            ctx.arc(centerX + 2, bodyY + 22, 3.5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.arc(centerX + 2, bodyY + 22, 1.5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            // Head
-            ctx.fillStyle = '#fed7aa'; // Natural skin tone
-            ctx.beginPath();
-            ctx.arc(centerX, bodyY + 4, 9, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Hair spikes
-            ctx.fillStyle = '#1e293b';
-            ctx.beginPath();
-            ctx.moveTo(centerX - 8, bodyY + 1);
-            ctx.lineTo(centerX - 4, bodyY - 8);
-            ctx.lineTo(centerX, bodyY - 1);
-            ctx.lineTo(centerX + 3, bodyY - 9);
-            ctx.lineTo(centerX + 6, bodyY - 3);
-            ctx.lineTo(centerX + 9, bodyY - 6);
-            ctx.lineTo(centerX + 10, bodyY + 2);
+            ctx.moveTo(-3, -26);
+            ctx.lineTo(5, -26);
+            ctx.lineTo(7, -22); // Shoulder
+            ctx.lineTo(5, 0);   // Waist front
+            ctx.lineTo(-4, 0);  // Waist back
+            ctx.lineTo(-6, -22); // Shoulder back
             ctx.closePath();
             ctx.fill();
 
-            // Eye (white)
+            // Shirt folds / shading
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(3, -22);
+            ctx.lineTo(1, -5);
+            ctx.stroke();
+
+            // Collar
+            ctx.fillStyle = '#f1f5f9';
+            ctx.beginPath();
+            ctx.moveTo(-2, -26);
+            ctx.lineTo(4, -26);
+            ctx.lineTo(1, -21);
+            ctx.closePath();
+            ctx.fill();
+
+            // Red Tie (flowing wide)
+            ctx.fillStyle = '#dc2626';
+            ctx.beginPath();
+            ctx.moveTo(-1, -24);
+            ctx.lineTo(3, -24);
+
+            // Dynamic Tie physics
+            const tieSwing = isJumping ? 1.0 - (player.vy / 15) : Math.sin(runCycle * 2) * 1.0 + 0.8;
+
+            ctx.lineTo(1 + tieSwing * 5, -8);
+            ctx.lineTo(-2 + tieSwing * 5, -8);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = '#b91c1c'; // dark tip
+            ctx.beginPath();
+            ctx.moveTo(-2 + tieSwing * 5, -8);
+            ctx.lineTo(1 + tieSwing * 5, -8);
+            ctx.lineTo(-0.5 + tieSwing * 8, -2);
+            ctx.closePath();
+            ctx.fill();
+
+            // Belt & Tucked Shirt Line
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(-5, -2, 11, 3);
+            ctx.fillStyle = '#cbd5e1'; // Buckle
+            ctx.fillRect(0, -2, 3, 3);
+
+            // Head (attached to neck)
+            ctx.save();
+            ctx.translate(1, -30); // 1 pixel forward for better posture
+            // unrotate head slightly so he looks forward
+            ctx.rotate(-leanAngle * 0.7);
+
+            // Skin (Face base)
+            ctx.fillStyle = '#fed7aa';
+            ctx.beginPath();
+            ctx.arc(0, -4, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Jaw line & Chin
+            ctx.beginPath();
+            ctx.moveTo(-8, -4);
+            ctx.lineTo(-5, 5);
+            ctx.lineTo(2, 6); // Chin point
+            ctx.lineTo(8, -4);
+            ctx.fill();
+
+            // Nose
+            ctx.fillStyle = '#fdb172'; // Slightly darker skin tone for shadow
+            ctx.beginPath();
+            ctx.moveTo(7, -3);
+            ctx.lineTo(10, -1);
+            ctx.lineTo(7, 2);
+            ctx.fill();
+
+            // Office Hair (Dynamic flutter)
+            // Enhanced sine waves for complex fluttering
+            const hairBase = isJumping ? -3 + (player.vy / 10) * 2 : -1.5;
+            const hairS1 = hairBase + (isJumping ? 0 : Math.sin(runCycle * 4) * 2.5);
+            const hairS2 = hairBase + (isJumping ? 0 : Math.cos(runCycle * 3) * 1.5);
+
+            ctx.fillStyle = '#452b17';
+            ctx.beginPath();
+            // Start at front forehead
+            ctx.moveTo(-9, -2);
+            // Sweep up and back with dynamic flutter
+            ctx.quadraticCurveTo(-11 + hairS1, -12 + hairS2, 0, -14);
+            // Top of head
+            ctx.quadraticCurveTo(8, -13, 9, -5);
+            // Bangs
+            ctx.quadraticCurveTo(5, -10, -2, -8);
+            // Back to start
+            ctx.quadraticCurveTo(-7, -8, -9, -2);
+            ctx.fill();
+
+            // Back hair strands (fluttering separately)
+            ctx.beginPath();
+            ctx.moveTo(-8, -4);
+            // Dynamic long strand
+            ctx.quadraticCurveTo(-12 + hairS1 * 1.5, 0 + hairS2, -10 + hairS1, 3);
+            ctx.lineTo(-6, 2);
+            ctx.fill();
+
+            // Eye
             ctx.fillStyle = '#fff';
             ctx.beginPath();
-            ctx.ellipse(centerX + 4, bodyY + 4, 3.5, 2.5, 0, 0, Math.PI * 2);
+            ctx.ellipse(3, -4.5, 2.5, 1.5, 0, 0, Math.PI * 2);
             ctx.fill();
             // Pupil
             ctx.fillStyle = '#0f172a';
             ctx.beginPath();
-            ctx.arc(centerX + 5.5, bodyY + 4, 1.5, 0, Math.PI * 2);
+            ctx.arc(4, -4.5, 1, 0, Math.PI * 2);
             ctx.fill();
-            // Eye highlight
-            ctx.fillStyle = '#fff';
+
+            // Glasses (Office worker style!)
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1.0;
             ctx.beginPath();
-            ctx.arc(centerX + 5, bodyY + 3.2, 0.6, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Visor (cyberpunk goggles on forehead)
-            ctx.fillStyle = '#0f172a';
+            // Frame around eye
+            ctx.roundRect(1, -6.5, 5, 4, 1);
+            ctx.stroke();
+            // Temple (arm to ear)
             ctx.beginPath();
-            ctx.roundRect(centerX - 2, bodyY - 3, 10, 5, 2);
-            ctx.fill();
-            ctx.fillStyle = '#0ea5e9';
-            ctx.shadowColor = '#0ea5e9';
-            ctx.shadowBlur = 8;
-            ctx.fillRect(centerX + 1, bodyY - 2, 6, 2);
-            ctx.shadowBlur = 0;
+            ctx.moveTo(1, -4.5);
+            ctx.lineTo(-4, -4.5);
+            ctx.stroke();
 
-            // Front leg
-            const rLegAngle = isJumping ? -0.8 : Math.sin(runCycle) * 0.8;
-            drawLimb(centerX, bodyY + h / 2 - 10, rLegAngle, '#94a3b8', 6, 15, 15);
-            // Front shoe
-            drawShoe(centerX, bodyY + h / 2 - 10, rLegAngle, 15, 15, '#0f172a');
+            // Eyebrow
+            ctx.strokeStyle = '#352212';
+            ctx.lineWidth = 1.2;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(1, -7.5);
+            ctx.lineTo(5, -8);
+            ctx.stroke();
 
-            // Front arm
-            const rArmAngle = isJumping ? -2.5 : Math.sin(runCycle + Math.PI) * 0.8;
-            drawLimb(centerX, bodyY + 15, rArmAngle, '#94a3b8', 5, 13, 11);
+            ctx.restore(); // Head
+            ctx.restore(); // Torso
+
+            // Front Leg (Right)
+            drawLeg(0, 0, rThighAngle, rKneeBend, '#0f172a', '#020617');
+
+            // Front Arm (Right)
+            ctx.save();
+            ctx.rotate(leanAngle);
+            ctx.translate(0, -24);
+            ctx.rotate(-leanAngle);
+            drawArm(0, 0, rShoulderAngle, rElbowBend, '#f8fafc', '#fed7aa', true);
+            ctx.restore();
+
+            ctx.restore(); // Hips
         }
 
-        function drawShoe(baseX, baseY, angle, len1, len2, color) {
+        // Draws a realistic leg segment (Pants -> Calf -> Shoe)
+        function drawLeg(x, y, thighAngle, kneeAngle, colorTop, colorBot) {
             ctx.save();
-            ctx.translate(baseX, baseY);
-            ctx.rotate(angle);
-            ctx.translate(0, len1);
-            const jointBend = Math.max(0.1, angle * 1.5 + 0.5);
-            ctx.rotate(jointBend);
-            ctx.translate(0, len2);
+            ctx.translate(x, y);
+            ctx.rotate(thighAngle);
 
-            // High-top Sneaker shape
-            ctx.fillStyle = color;
+            // Thigh (Pants)
+            ctx.fillStyle = colorTop;
             ctx.beginPath();
-            ctx.roundRect(-5, -4, 12, 8, 3);
+            ctx.moveTo(-5, 0); // front hip
+            ctx.lineTo(4, 0); // back hip
+            ctx.lineTo(3, 17); // back knee
+            ctx.lineTo(-4, 17); // front knee
             ctx.fill();
 
-            // Sneaker accents
-            ctx.fillStyle = '#f43f5e';
-            ctx.fillRect(1, -2, 4, 3);
-
-            // Sole
-            ctx.fillStyle = '#f8fafc';
+            // Knee joint overlap
             ctx.beginPath();
-            ctx.roundRect(-4, 3, 11, 2.5, 1);
+            ctx.arc(-0.5, 16.5, 3.5, 0, Math.PI * 2);
             ctx.fill();
+
+            ctx.translate(0, 17);
+            ctx.rotate(kneeAngle);
+
+            // Calf (Pants)
+            ctx.fillStyle = colorBot;
+            ctx.beginPath();
+            ctx.moveTo(-3, -1);
+            ctx.lineTo(3, -1);
+            ctx.lineTo(2, 16); // ankle
+            ctx.lineTo(-2, 16); // ankle
+            ctx.fill();
+
+            // Dress Shoe
+            ctx.translate(0, 16);
+            ctx.fillStyle = colorBot === '#020617' ? '#0f172a' : '#000000'; // shiny black
+            ctx.beginPath();
+            ctx.moveTo(-3, 0);
+            ctx.lineTo(7, 0); // pointing toe forwards
+            ctx.quadraticCurveTo(9, 4, 7, 5); // toe bend
+            ctx.lineTo(-4, 5); // heel
+            ctx.lineTo(-4, 0); // heel top
+            ctx.fill();
+            // Shoe highlight
+            if (colorBot === '#020617') {
+                ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                ctx.fillRect(0, 1, 4, 1);
+            }
 
             ctx.restore();
         }
 
-        function drawLimb(x, y, angle, color, width, len1, len2) {
+        // Draws a realistic arm segment (Sleeve -> Forearm -> Hand)
+        function drawArm(x, y, shoulderAngle, elbowAngle, shirtColor, skinColor, isFront) {
             ctx.save();
             ctx.translate(x, y);
-            ctx.rotate(angle);
+            ctx.rotate(shoulderAngle);
 
-            // Upper limb
-            ctx.strokeStyle = color;
-            ctx.lineWidth = width;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
+            // Upper arm (Sleeve)
+            ctx.fillStyle = shirtColor;
             ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(0, len1);
-            ctx.stroke();
-
-            // Joint
-            ctx.fillStyle = '#334155';
-            ctx.beginPath();
-            ctx.arc(0, len1, width * 0.4, 0, Math.PI * 2);
+            ctx.moveTo(-3, 0);
+            ctx.lineTo(3, 0);
+            ctx.lineTo(2, 14);
+            ctx.lineTo(-2, 14);
             ctx.fill();
 
-            const jointBend = Math.max(0.1, angle * 1.5 + 0.5);
-            ctx.translate(0, len1);
-            ctx.rotate(jointBend);
-
-            // Lower limb
+            // Shoulder curve
             ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(0, len2);
+            ctx.arc(0, 0, 3, Math.PI, 0);
+            ctx.fill();
+
+            // Elbow joint
+            ctx.beginPath();
+            ctx.arc(0, 13.5, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.translate(0, 14);
+            ctx.rotate(elbowAngle);
+
+            // Forearm (Sleeve folded)
+            ctx.beginPath();
+            ctx.moveTo(-2, -1);
+            ctx.lineTo(2, -1);
+            ctx.lineTo(1.5, 11); // Wrist
+            ctx.lineTo(-1.5, 11);
+            ctx.fill();
+
+            // Cuff detail
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-1.5, 9);
+            ctx.lineTo(1.5, 9);
             ctx.stroke();
+
+            // Hand (Clenched slightly)
+            ctx.translate(0, 11);
+            // Counter-rotate hand slightly so it doesn't look broken
+            ctx.rotate(-elbowAngle * 0.3);
+            ctx.fillStyle = skinColor;
+            ctx.beginPath();
+            ctx.arc(0, 2, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            // Thumb
+            ctx.beginPath();
+            ctx.ellipse(-1.5, 1, 1.5, 2, 0.5, 0, Math.PI * 2);
+            ctx.fill();
 
             ctx.restore();
         }
