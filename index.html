@@ -445,7 +445,10 @@
             ctx: null,
             noiseBuffer: null,
             rainGain: null,
+            bgmOsc1: null,
+            bgmGain: null,
             initialized: false,
+            isMuted: false,
 
             init: function () {
                 if (this.initialized) return;
@@ -460,13 +463,13 @@
                     output[i] = Math.random() * 2 - 1;
                 }
 
-                // Rain Sound Setup (Continuous loop, volume controlled by gain)
+                // Rain Sound Setup
                 const rainSrc = this.ctx.createBufferSource();
                 rainSrc.buffer = this.noiseBuffer;
                 rainSrc.loop = true;
                 const rainFilter = this.ctx.createBiquadFilter();
                 rainFilter.type = 'lowpass';
-                rainFilter.frequency.value = 400; // Muffled rain sound
+                rainFilter.frequency.value = 400;
                 this.rainGain = this.ctx.createGain();
                 this.rainGain.gain.value = 0;
 
@@ -475,90 +478,175 @@
                 this.rainGain.connect(this.ctx.destination);
                 rainSrc.start();
 
+                // Ambient BGM (Cyberpunk drone)
+                this.bgmGain = this.ctx.createGain();
+                this.bgmGain.gain.value = this.isMuted ? 0 : 0.05;
+
+                this.bgmOsc1 = this.ctx.createOscillator();
+                this.bgmOsc1.type = 'sawtooth';
+                this.bgmOsc1.frequency.value = 55; // Low A
+
+                const lfo = this.ctx.createOscillator();
+                lfo.type = 'sine';
+                lfo.frequency.value = 0.5; // slow throb
+                const lfoGain = this.ctx.createGain();
+                lfoGain.gain.value = 10;
+                lfo.connect(lfoGain);
+                lfoGain.connect(this.bgmOsc1.frequency);
+
+                const bgmFilter = this.ctx.createBiquadFilter();
+                bgmFilter.type = 'lowpass';
+                bgmFilter.frequency.value = 300;
+
+                this.bgmOsc1.connect(bgmFilter);
+                bgmFilter.connect(this.bgmGain);
+                this.bgmGain.connect(this.ctx.destination);
+
+                this.bgmOsc1.start();
+                lfo.start();
+
                 this.initialized = true;
+                if (this.isMuted) this.ctx.suspend();
+            },
+
+            toggleMute: function () {
+                this.isMuted = !this.isMuted;
+                if (!this.initialized && !this.isMuted) {
+                    this.init();
+                } else if (this.initialized) {
+                    if (this.isMuted) {
+                        this.ctx.suspend();
+                    } else {
+                        this.ctx.resume();
+                    }
+                }
+                return this.isMuted;
             },
 
             updateWeatherAudio: function (intensity) {
-                if (!this.initialized) return;
-                // Smoothly transition rain volume
-                const targetVol = intensity * 0.3;
+                if (!this.initialized || this.isMuted) return;
+                const targetVol = intensity * 0.4;
                 this.rainGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.5);
             },
 
             playThunder: function () {
-                if (!this.initialized) return;
+                if (!this.initialized || this.isMuted) return;
                 const osc = this.ctx.createBufferSource();
                 osc.buffer = this.noiseBuffer;
+
+                // Low rumble thunder
                 const filter = this.ctx.createBiquadFilter();
                 filter.type = 'lowpass';
-                filter.frequency.value = 150; // Deep rumble
+                filter.frequency.setValueAtTime(100, this.ctx.currentTime);
+                filter.frequency.linearRampToValueAtTime(300, this.ctx.currentTime + 0.2);
+                filter.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime + 2.0);
+
                 const gain = this.ctx.createGain();
-                gain.gain.setValueAtTime(0.8, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.5); // Long decay
+                gain.gain.setValueAtTime(0, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(1.2, this.ctx.currentTime + 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 2.5);
 
                 osc.connect(filter);
                 filter.connect(gain);
                 gain.connect(this.ctx.destination);
                 osc.start();
-                osc.stop(this.ctx.currentTime + 1.5);
+                osc.stop(this.ctx.currentTime + 2.5);
             },
 
             playStep: function () {
-                if (!this.initialized) return;
-                const osc = this.ctx.createBufferSource();
-                osc.buffer = this.noiseBuffer;
-                const filter = this.ctx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = 600;
-                const gain = this.ctx.createGain();
-                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
-                osc.connect(filter);
-                filter.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.1);
+                if (!this.initialized || this.isMuted) return;
+                // Layered footstep: noise transient + low thud
+                const t = this.ctx.currentTime;
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = this.noiseBuffer;
+                const nFilter = this.ctx.createBiquadFilter();
+                nFilter.type = 'bandpass';
+                nFilter.frequency.value = 1200;
+                const nGain = this.ctx.createGain();
+                nGain.gain.setValueAtTime(0.15, t);
+                nGain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+                noise.connect(nFilter).connect(nGain).connect(this.ctx.destination);
+                noise.start(t);
+                noise.stop(t + 0.05);
+
+                const osc = this.ctx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(100, t);
+                osc.frequency.exponentialRampToValueAtTime(40, t + 0.08);
+                const oscGain = this.ctx.createGain();
+                oscGain.gain.setValueAtTime(0.3, t);
+                oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+                osc.connect(oscGain).connect(this.ctx.destination);
+                osc.start(t);
+                osc.stop(t + 0.1);
             },
 
             playJump: function () {
-                if (!this.initialized) return;
+                if (!this.initialized || this.isMuted) return;
+                const t = this.ctx.currentTime;
+
                 const osc = this.ctx.createOscillator();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(300, this.ctx.currentTime + 0.2);
+                osc.type = 'square'; // more retro/punchy
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.exponentialRampToValueAtTime(400, t + 0.15);
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(500, t);
+                filter.frequency.linearRampToValueAtTime(2000, t + 0.1);
+
                 const gain = this.ctx.createGain();
-                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.15, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+
+                osc.connect(filter).connect(gain).connect(this.ctx.destination);
+                osc.start(t);
+                osc.stop(t + 0.2);
+
+                // Jump whoosh
                 const noise = this.ctx.createBufferSource();
                 noise.buffer = this.noiseBuffer;
-                const noiseGain = this.ctx.createGain();
-                noiseGain.gain.setValueAtTime(0.05, this.ctx.currentTime);
-                noiseGain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                noise.connect(noiseGain);
-                noiseGain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.2);
-                noise.start();
-                noise.stop(this.ctx.currentTime + 0.3);
+                const nFilter = this.ctx.createBiquadFilter();
+                nFilter.type = 'lowpass';
+                nFilter.frequency.setValueAtTime(1000, t);
+                nFilter.frequency.linearRampToValueAtTime(200, t + 0.2);
+                const nGain = this.ctx.createGain();
+                nGain.gain.setValueAtTime(0.1, t);
+                nGain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+                noise.connect(nFilter).connect(nGain).connect(this.ctx.destination);
+                noise.start(t);
+                noise.stop(t + 0.2);
             },
 
             playLand: function () {
-                if (!this.initialized) return;
-                const osc = this.ctx.createBufferSource();
-                osc.buffer = this.noiseBuffer;
-                const filter = this.ctx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = 300;
+                if (!this.initialized || this.isMuted) return;
+                const t = this.ctx.currentTime;
+
+                // Hard thud
+                const osc = this.ctx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
                 const gain = this.ctx.createGain();
-                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
-                osc.connect(filter);
-                filter.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.4, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+                osc.connect(gain).connect(this.ctx.destination);
+                osc.start(t);
+                osc.stop(t + 0.15);
+
+                // Scuff
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = this.noiseBuffer;
+                const nFilter = this.ctx.createBiquadFilter();
+                nFilter.type = 'lowpass';
+                nFilter.frequency.value = 800;
+                const nGain = this.ctx.createGain();
+                nGain.gain.setValueAtTime(0.2, t);
+                nGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+                noise.connect(nFilter).connect(nGain).connect(this.ctx.destination);
+                noise.start(t);
+                noise.stop(t + 0.15);
             }
         };
 
@@ -696,8 +784,8 @@
         }
 
         function createBuilding(xOffset) {
-            const h = 150 + Math.random() * 350;
-            const w = 60 + Math.random() * 100;
+            const h = 150 + Math.random() * 400; // Taller buildings
+            const w = 70 + Math.random() * 130; // Wider
             const layer = Math.floor(Math.random() * 3);
             const roofType = Math.floor(Math.random() * 3);
             const windows = [];
@@ -708,7 +796,18 @@
                 for (let r = 1; r < rows - 1; r++) {
                     for (let c = 1; c < cols - 1; c++) {
                         if ((style > 0.5 && Math.random() > 0.3) || (style <= 0.5 && (r + c) % 2 === 0)) {
-                            windows.push({ x: c * 18, y: r * 25, w: 10, h: 16, lightSeed: Math.random() });
+                            // Occasional wide or tall windows if space permits
+                            const wide = Math.random() > 0.8 && c < cols - 2;
+                            const tall = !wide && Math.random() > 0.8 && r < rows - 2;
+                            windows.push({
+                                x: c * 18,
+                                y: r * 25,
+                                w: wide ? 24 : 10,
+                                h: tall ? 36 : 16,
+                                lightSeed: Math.random(),
+                                colorTheme: Math.random() // for different light colors
+                            });
+                            if (wide) c++; // skip next column
                         }
                     }
                 }
@@ -716,21 +815,29 @@
             // Rooftop details
             const rooftopDetails = [];
             // Antennas
-            if (Math.random() > 0.4) {
-                rooftopDetails.push({ type: 'antenna', x: w * 0.3 + Math.random() * w * 0.4, h: 15 + Math.random() * 25, blink: Math.random() });
+            if (Math.random() > 0.3) {
+                rooftopDetails.push({ type: 'antenna', x: w * 0.2 + Math.random() * w * 0.6, h: 20 + Math.random() * 40, blink: Math.random() });
             }
             // AC units
-            const acCount = Math.floor(Math.random() * 3);
+            const acCount = Math.floor(Math.random() * 4);
             for (let i = 0; i < acCount; i++) {
                 rooftopDetails.push({ type: 'ac', x: 8 + Math.random() * (w - 24) });
             }
             // Water tank
-            if (Math.random() > 0.6 && h > 250) {
+            if (Math.random() > 0.5 && h > 200) {
                 rooftopDetails.push({ type: 'tank', x: 10 + Math.random() * (w - 30) });
             }
             // Satellite dish
-            if (Math.random() > 0.7) {
-                rooftopDetails.push({ type: 'dish', x: w * 0.2 + Math.random() * w * 0.6 });
+            if (Math.random() > 0.6) {
+                rooftopDetails.push({ type: 'dish', x: w * 0.1 + Math.random() * w * 0.8 });
+            }
+            // Billboard
+            if (Math.random() > 0.8 && w > 80 && layer > 0) {
+                rooftopDetails.push({
+                    type: 'billboard',
+                    x: 10 + Math.random() * (w - 70),
+                    color: ['#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'][Math.floor(Math.random() * 5)]
+                });
             }
             // Neon sign
             let neonSign = null;
@@ -741,13 +848,14 @@
                     y: 30 + Math.random() * 40,
                     w: 15 + Math.random() * 20,
                     h: 8 + Math.random() * 10,
-                    color: neonColors[Math.floor(Math.random() * neonColors.length)]
+                    color: neonColors[Math.floor(Math.random() * neonColors.length)],
+                    style: Math.floor(Math.random() * 3) // 0: rect, 1: text-like lines, 2: vertical
                 };
             }
             // Balconies
             const balconies = [];
             if (layer >= 1 && Math.random() > 0.5) {
-                const bCount = 2 + Math.floor(Math.random() * 3);
+                const bCount = 2 + Math.floor(Math.random() * 4);
                 for (let i = 0; i < bCount; i++) {
                     balconies.push({ y: 40 + i * (h / (bCount + 1)), side: Math.random() > 0.5 ? 'left' : 'right' });
                 }
@@ -761,73 +869,89 @@
 
         function createTree(xOffset) {
             const layer = Math.floor(Math.random() * 3);
-            const trunkH = 100 + Math.random() * 150;
-            const trunkW = 10 + Math.random() * 14;
-            const canopyType = Math.random() > 0.35 ? 'round' : 'pine';
-            const canopySize = 40 + Math.random() * 60;
-            const leafShade = Math.floor(Math.random() * 3);
+            const trunkH = 120 + Math.random() * 200; // Taller trees
+            const trunkW = 12 + Math.random() * 22; // Thicker trunks
+
+            // 4 canopy types: round, pine, tall, umbrella
+            const canopyTypes = ['round', 'pine', 'tall', 'umbrella'];
+            const canopyType = canopyTypes[Math.floor(Math.random() * canopyTypes.length)];
+            const canopySize = 50 + Math.random() * 80;
+            const leafShade = Math.floor(Math.random() * 4); // Added a new shade
+
             // Branches
             const branches = [];
-            const branchCount = 2 + Math.floor(Math.random() * 3);
+            const branchCount = 3 + Math.floor(Math.random() * 4);
             for (let i = 0; i < branchCount; i++) {
                 branches.push({
-                    yFrac: 0.3 + Math.random() * 0.5,
+                    yFrac: 0.2 + Math.random() * 0.6,
                     side: Math.random() > 0.5 ? 1 : -1,
-                    len: 15 + Math.random() * 25,
-                    angle: 0.3 + Math.random() * 0.6
+                    len: 20 + Math.random() * 40,
+                    angle: 0.2 + Math.random() * 0.6,
+                    width: 2 + Math.random() * 4
                 });
             }
             // Leaf clusters on branches
             const leafClusters = [];
             branches.forEach(br => {
-                if (Math.random() > 0.3) {
+                if (Math.random() > 0.2) {
                     leafClusters.push({
                         yFrac: br.yFrac,
                         side: br.side,
                         len: br.len,
                         angle: br.angle,
-                        size: 8 + Math.random() * 12,
-                        shade: Math.floor(Math.random() * 3)
+                        size: 15 + Math.random() * 25,
+                        shade: Math.floor(Math.random() * 4)
                     });
                 }
             });
             // Roots
             const roots = [];
-            if (Math.random() > 0.3) {
-                const rootCount = 2 + Math.floor(Math.random() * 3);
+            if (Math.random() > 0.2) {
+                const rootCount = 3 + Math.floor(Math.random() * 3);
                 for (let i = 0; i < rootCount; i++) {
                     roots.push({
                         side: (i % 2 === 0) ? -1 : 1,
-                        len: 10 + Math.random() * 20,
-                        curve: Math.random() * 8
+                        len: 15 + Math.random() * 30,
+                        curve: Math.random() * 12
                     });
                 }
             }
             // Vines
             const vines = [];
-            if (Math.random() > 0.3) {
-                const vCount = 2 + Math.floor(Math.random() * 4);
+            if (Math.random() > 0.2) {
+                const vCount = 3 + Math.floor(Math.random() * 5);
                 for (let i = 0; i < vCount; i++) {
                     vines.push({
-                        xOff: -canopySize * 0.7 + Math.random() * canopySize * 1.4,
-                        len: 25 + Math.random() * 50,
+                        xOff: -canopySize * 0.8 + Math.random() * canopySize * 1.6,
+                        len: 40 + Math.random() * 80,
                         sway: Math.random() * Math.PI * 2,
-                        leaflets: Math.random() > 0.4
+                        leaflets: Math.random() > 0.3
                     });
                 }
             }
             // Trunk texture seeds
             const barkLines = [];
             for (let by = 5; by < trunkH; by += 8 + Math.random() * 6) {
-                barkLines.push({ y: by, curve: (Math.random() - 0.5) * 4 });
+                barkLines.push({ y: by, curve: (Math.random() - 0.5) * 6 });
             }
+
+            // Moss on trunk
+            const mosses = [];
+            for (let m = 0; m < 3; m++) {
+                mosses.push({
+                    y: Math.random() * trunkH,
+                    size: 4 + Math.random() * 8,
+                    side: Math.random() > 0.5 ? 1 : -1
+                });
+            }
+
             return {
                 x: xOffset,
                 y: canvas.height - trunkH + 80,
-                w: Math.max(canopySize * 2, trunkW + 20),
+                w: Math.max(canopySize * 2, trunkW + 40),
                 h: trunkH,
                 layer, trunkW, canopyType, canopySize, leafShade,
-                branches, leafClusters, roots, vines, barkLines,
+                branches, leafClusters, roots, vines, barkLines, mosses,
                 elementType: 'tree'
             };
         }
@@ -1108,22 +1232,29 @@
 
         function getSkyColor(progress) {
             const sunsetTop = [15, 23, 42];
-            const sunsetBot = [202, 138, 4];
+            const sunsetMid = [153, 27, 27];
+            const sunsetBot = [245, 158, 11];
+
             const nightTop = [2, 6, 23];
-            const nightBot = [15, 23, 42];
-            const sunriseTop = [56, 189, 248];
+            const nightMid = [15, 23, 42];
+            const nightBot = [30, 41, 59];
+
+            const sunriseTop = [14, 165, 233];
+            const sunriseMid = [236, 72, 153];
             const sunriseBot = [253, 186, 116];
 
             if (progress < 0.25) {
                 const t = progress / 0.25;
                 return {
                     top: interpolateColor(sunsetTop, nightTop, t),
+                    mid: interpolateColor(sunsetMid, nightMid, t),
                     bot: interpolateColor(sunsetBot, nightBot, t),
                     alpha: 1 - t
                 };
             } else if (progress < 0.75) {
                 return {
                     top: `rgb(${nightTop.join(',')})`,
+                    mid: `rgb(${nightMid.join(',')})`,
                     bot: `rgb(${nightBot.join(',')})`,
                     alpha: 0
                 };
@@ -1131,6 +1262,7 @@
                 const t = (progress - 0.75) / 0.25;
                 return {
                     top: interpolateColor(nightTop, sunriseTop, t),
+                    mid: interpolateColor(nightMid, sunriseMid, t),
                     bot: interpolateColor(nightBot, sunriseBot, t),
                     alpha: t
                 };
@@ -1162,19 +1294,34 @@
         }
 
         function drawCharacterBody(x, bodyY, w, h, centerX, runCycle, isJumping) {
+            // Shadow under character if grounded
+            if (!isJumping) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                ctx.beginPath();
+                ctx.ellipse(centerX, bodyY + h - 5, 20 + Math.abs(Math.sin(runCycle)) * 8, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
             // Scarf (behind)
             const scarfBaseX = centerX;
             const scarfBaseY = bodyY + 12;
             const flowX = -15 - (gameSpeed * 1.5) - (player.vx * 2);
-            const flowY = -5 + (player.vy * 2) + Math.sin(animTime * 3) * 5;
-            ctx.fillStyle = '#ef4444';
+            const flowY = -5 + (player.vy * 2) + Math.sin(animTime * 4) * 6;
+
+            // Scarf glow
+            ctx.shadowColor = '#f43f5e';
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = '#f43f5e';
             ctx.beginPath();
             ctx.moveTo(scarfBaseX - 2, scarfBaseY);
             ctx.quadraticCurveTo(scarfBaseX + flowX * 0.4, scarfBaseY + flowY - 8, scarfBaseX + flowX, scarfBaseY + flowY);
             ctx.lineTo(scarfBaseX + flowX + 3, scarfBaseY + flowY + 10);
             ctx.quadraticCurveTo(scarfBaseX + flowX * 0.5, scarfBaseY + flowY + 6, scarfBaseX + 2, scarfBaseY + 4);
             ctx.fill();
+            ctx.shadowBlur = 0;
+
             // Second scarf tail
+            ctx.fillStyle = '#be123c';
             ctx.beginPath();
             ctx.moveTo(scarfBaseX, scarfBaseY + 2);
             ctx.quadraticCurveTo(scarfBaseX + flowX * 0.3, scarfBaseY + flowY + 5, scarfBaseX + flowX * 0.7, scarfBaseY + flowY + 12);
@@ -1184,77 +1331,97 @@
 
             // Back leg
             const lLegAngle = isJumping ? 0.5 : Math.sin(runCycle + Math.PI) * 0.8;
-            drawLimb(centerX, bodyY + h / 2 - 10, lLegAngle, '#64748b', 6, 14, 14);
+            drawLimb(centerX, bodyY + h / 2 - 10, lLegAngle, '#475569', 6, 15, 15);
             // Back shoe
-            drawShoe(centerX, bodyY + h / 2 - 10, lLegAngle, 14, 14, '#334155');
+            drawShoe(centerX, bodyY + h / 2 - 10, lLegAngle, 15, 15, '#1e293b');
 
             // Back arm
             const lArmAngle = isJumping ? -0.5 : Math.sin(runCycle) * 0.8;
-            drawLimb(centerX, bodyY + 15, lArmAngle, '#64748b', 5, 12, 10);
+            drawLimb(centerX, bodyY + 15, lArmAngle, '#475569', 5, 13, 11);
 
-            // Hoodie / Body
-            ctx.fillStyle = '#e2e8f0';
+            // Backpack ( cyberpunk style )
+            ctx.fillStyle = '#0f172a';
             ctx.beginPath();
-            ctx.roundRect(centerX - w / 2 + 2, bodyY + 10, w - 4, h * 0.35, 4);
+            ctx.roundRect(centerX - w / 2 - 6, bodyY + 12, 8, 20, 3);
             ctx.fill();
+            // Backpack glow
+            ctx.fillStyle = '#0ea5e9';
+            ctx.shadowColor = '#0ea5e9';
+            ctx.shadowBlur = 5;
+            ctx.fillRect(centerX - w / 2 - 8, bodyY + 16, 3, 8);
+            ctx.shadowBlur = 0;
+
+            // Hoodie / Body Base
+            const bodyGrad = ctx.createLinearGradient(centerX - w / 2, bodyY, centerX + w / 2, bodyY + h * 0.4);
+            bodyGrad.addColorStop(0, '#f1f5f9');
+            bodyGrad.addColorStop(1, '#94a3b8');
+            ctx.fillStyle = bodyGrad;
+            ctx.beginPath();
+            ctx.roundRect(centerX - w / 2 + 2, bodyY + 10, w - 2, h * 0.38, 5);
+            ctx.fill();
+
+            // Jacket design lines
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(centerX - 4, bodyY + 10);
+            ctx.lineTo(centerX - 8, bodyY + 30);
+            ctx.stroke();
+
             // Hoodie hood (behind head)
             ctx.fillStyle = '#cbd5e1';
             ctx.beginPath();
-            ctx.arc(centerX, bodyY + 8, 11, Math.PI, 0);
+            ctx.arc(centerX, bodyY + 8, 12, Math.PI, 0);
             ctx.fill();
-            // Hood edge line
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 1;
+
+            // Hoodie drawstrings
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.arc(centerX, bodyY + 8, 11, Math.PI * 1.1, -Math.PI * 0.1);
-            ctx.stroke();
-            // Pocket line
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 0.8;
-            ctx.beginPath();
-            ctx.roundRect(centerX - 6, bodyY + 24, 12, 5, 2);
-            ctx.stroke();
-            // Zipper / center line
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 0.5;
-            ctx.beginPath();
-            ctx.moveTo(centerX, bodyY + 12);
-            ctx.lineTo(centerX, bodyY + 10 + h * 0.35);
+            ctx.moveTo(centerX + 6, bodyY + 16);
+            ctx.quadraticCurveTo(centerX + 8, bodyY + 22, centerX + 6 + Math.sin(animTime * 5) * 2, bodyY + 26);
             ctx.stroke();
 
             // Belt
-            ctx.fillStyle = '#1e293b';
+            ctx.fillStyle = '#0f172a';
             ctx.beginPath();
-            ctx.roundRect(centerX - w / 2 + 4, bodyY + 10 + h * 0.35, w - 8, h * 0.12, 2);
+            ctx.roundRect(centerX - w / 2 + 3, bodyY + 10 + h * 0.35, w - 4, h * 0.12, 2);
             ctx.fill();
-            // Belt buckle
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillRect(centerX - 2, bodyY + 11 + h * 0.35, 4, h * 0.1);
+
+            // Belt pouches
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(centerX - 10, bodyY + 12 + h * 0.35, 6, 8);
+            ctx.fillRect(centerX + 4, bodyY + 12 + h * 0.35, 8, 8);
 
             // Tech emblem glow
             ctx.fillStyle = '#0ea5e9';
             ctx.shadowColor = '#0ea5e9';
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 12;
             ctx.beginPath();
-            ctx.arc(centerX, bodyY + 18, 2.5, 0, Math.PI * 2);
+            ctx.arc(centerX + 2, bodyY + 22, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(centerX + 2, bodyY + 22, 1.5, 0, Math.PI * 2);
             ctx.fill();
             ctx.shadowBlur = 0;
 
             // Head
-            ctx.fillStyle = '#e2e8f0';
+            ctx.fillStyle = '#fed7aa'; // Natural skin tone
             ctx.beginPath();
-            ctx.arc(centerX, bodyY + 5, 9, 0, Math.PI * 2);
+            ctx.arc(centerX, bodyY + 4, 9, 0, Math.PI * 2);
             ctx.fill();
+
             // Hair spikes
             ctx.fillStyle = '#1e293b';
             ctx.beginPath();
-            ctx.moveTo(centerX - 7, bodyY + 1);
-            ctx.lineTo(centerX - 3, bodyY - 6);
-            ctx.lineTo(centerX, bodyY + 0);
-            ctx.lineTo(centerX + 3, bodyY - 7);
-            ctx.lineTo(centerX + 5, bodyY - 2);
-            ctx.lineTo(centerX + 7, bodyY - 5);
-            ctx.lineTo(centerX + 9, bodyY + 1);
+            ctx.moveTo(centerX - 8, bodyY + 1);
+            ctx.lineTo(centerX - 4, bodyY - 8);
+            ctx.lineTo(centerX, bodyY - 1);
+            ctx.lineTo(centerX + 3, bodyY - 9);
+            ctx.lineTo(centerX + 6, bodyY - 3);
+            ctx.lineTo(centerX + 9, bodyY - 6);
+            ctx.lineTo(centerX + 10, bodyY + 2);
             ctx.closePath();
             ctx.fill();
 
@@ -1277,22 +1444,23 @@
             // Visor (cyberpunk goggles on forehead)
             ctx.fillStyle = '#0f172a';
             ctx.beginPath();
-            ctx.roundRect(centerX + 1, bodyY + 0, 8, 4, 2);
+            ctx.roundRect(centerX - 2, bodyY - 3, 10, 5, 2);
             ctx.fill();
-            ctx.fillStyle = '#f43f5e';
-            ctx.shadowColor = '#f43f5e';
-            ctx.shadowBlur = 6;
-            ctx.fillRect(centerX + 3, bodyY + 1, 5, 1.5);
+            ctx.fillStyle = '#0ea5e9';
+            ctx.shadowColor = '#0ea5e9';
+            ctx.shadowBlur = 8;
+            ctx.fillRect(centerX + 1, bodyY - 2, 6, 2);
             ctx.shadowBlur = 0;
 
             // Front leg
             const rLegAngle = isJumping ? -0.8 : Math.sin(runCycle) * 0.8;
-            drawLimb(centerX, bodyY + h / 2 - 10, rLegAngle, '#cbd5e1', 6, 14, 14);
-            drawShoe(centerX, bodyY + h / 2 - 10, rLegAngle, 14, 14, '#1e293b');
+            drawLimb(centerX, bodyY + h / 2 - 10, rLegAngle, '#94a3b8', 6, 15, 15);
+            // Front shoe
+            drawShoe(centerX, bodyY + h / 2 - 10, rLegAngle, 15, 15, '#0f172a');
 
             // Front arm
             const rArmAngle = isJumping ? -2.5 : Math.sin(runCycle + Math.PI) * 0.8;
-            drawLimb(centerX, bodyY + 15, rArmAngle, '#cbd5e1', 5, 12, 10);
+            drawLimb(centerX, bodyY + 15, rArmAngle, '#94a3b8', 5, 13, 11);
         }
 
         function drawShoe(baseX, baseY, angle, len1, len2, color) {
@@ -1303,14 +1471,23 @@
             const jointBend = Math.max(0.1, angle * 1.5 + 0.5);
             ctx.rotate(jointBend);
             ctx.translate(0, len2);
-            // Sneaker shape
+
+            // High-top Sneaker shape
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.roundRect(-4, -2, 10, 5, 2);
+            ctx.roundRect(-5, -4, 12, 8, 3);
             ctx.fill();
+
+            // Sneaker accents
+            ctx.fillStyle = '#f43f5e';
+            ctx.fillRect(1, -2, 4, 3);
+
             // Sole
             ctx.fillStyle = '#f8fafc';
-            ctx.fillRect(-3, 2, 8, 1.5);
+            ctx.beginPath();
+            ctx.roundRect(-4, 3, 11, 2.5, 1);
+            ctx.fill();
+
             ctx.restore();
         }
 
@@ -1318,6 +1495,8 @@
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle);
+
+            // Upper limb
             ctx.strokeStyle = color;
             ctx.lineWidth = width;
             ctx.lineCap = 'round';
@@ -1326,13 +1505,23 @@
             ctx.moveTo(0, 0);
             ctx.lineTo(0, len1);
             ctx.stroke();
+
+            // Joint
+            ctx.fillStyle = '#334155';
+            ctx.beginPath();
+            ctx.arc(0, len1, width * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+
             const jointBend = Math.max(0.1, angle * 1.5 + 0.5);
             ctx.translate(0, len1);
             ctx.rotate(jointBend);
+
+            // Lower limb
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(0, len2);
             ctx.stroke();
+
             ctx.restore();
         }
 
@@ -1342,59 +1531,112 @@
 
             const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
             gradient.addColorStop(0, sky.top);
+            gradient.addColorStop(0.5, sky.mid);
             gradient.addColorStop(1, sky.bot);
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // Sun
-            if (timeProgress < 0.35) {
-                const sunY = canvas.height * 0.3 + (timeProgress * canvas.height * 2.0);
-                const alpha = Math.max(0, 1 - timeProgress * 3);
+            if (timeProgress < 0.35 || timeProgress > 0.65) {
+                let sunProgress = timeProgress < 0.35 ? timeProgress : 1.0 - (timeProgress - 0.65) * 1.5;
+                let sunAlpha = Math.max(0, 1 - sunProgress * 2.5);
+                const sunY = canvas.height * 0.3 + (sunProgress * canvas.height * 1.5);
+                const sunX = timeProgress < 0.35 ? canvas.width * 0.8 : canvas.width * 0.2 + (timeProgress - 0.65) * canvas.width * 0.5;
+
                 ctx.save();
-                ctx.fillStyle = `rgba(255, 160, 50, ${alpha * 0.1})`;
+                ctx.fillStyle = `rgba(255, 120, 50, ${sunAlpha * 0.15})`;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                const glow = ctx.createRadialGradient(canvas.width * 0.8, sunY, 40, canvas.width * 0.8, sunY, 400);
-                glow.addColorStop(0, `rgba(255, 200, 100, ${alpha * 0.4})`);
+
+                // Outer huge glow
+                const megaGlow = ctx.createRadialGradient(sunX, sunY, 100, sunX, sunY, 600);
+                megaGlow.addColorStop(0, `rgba(255, 100, 50, ${sunAlpha * 0.2})`);
+                megaGlow.addColorStop(1, `rgba(255, 50, 0, 0)`);
+                ctx.fillStyle = megaGlow;
+                ctx.beginPath();
+                ctx.arc(sunX, sunY, 600, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Inner glow
+                const glow = ctx.createRadialGradient(sunX, sunY, 40, sunX, sunY, 200);
+                glow.addColorStop(0, `rgba(255, 230, 150, ${sunAlpha * 0.6})`);
                 glow.addColorStop(1, `rgba(255, 100, 50, 0)`);
                 ctx.fillStyle = glow;
                 ctx.beginPath();
-                ctx.arc(canvas.width * 0.8, sunY, 400, 0, Math.PI * 2);
+                ctx.arc(sunX, sunY, 200, 0, Math.PI * 2);
                 ctx.fill();
-                const sun = ctx.createRadialGradient(canvas.width * 0.8, sunY, 10, canvas.width * 0.8, sunY, 100);
-                sun.addColorStop(0, `rgba(255, 255, 240, ${alpha})`);
-                sun.addColorStop(0.2, `rgba(255, 220, 100, ${alpha})`);
-                sun.addColorStop(0.6, `rgba(255, 140, 0, ${alpha * 0.5})`);
-                sun.addColorStop(1, `rgba(255, 100, 0, 0)`);
+
+                // Core
+                const sun = ctx.createRadialGradient(sunX, sunY, 20, sunX, sunY, 80);
+                sun.addColorStop(0, `rgba(255, 255, 255, ${sunAlpha})`);
+                sun.addColorStop(0.4, `rgba(255, 240, 150, ${sunAlpha})`);
+                sun.addColorStop(1, `rgba(255, 150, 0, 0)`);
                 ctx.fillStyle = sun;
                 ctx.beginPath();
-                ctx.arc(canvas.width * 0.8, sunY, 100, 0, Math.PI * 2);
+                ctx.arc(sunX, sunY, 80, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.restore();
             }
 
             // Moon
-            if (timeProgress > 0.1) {
-                const moonY = canvas.height * 0.15 + Math.sin(timeProgress * Math.PI) * canvas.height * 0.15;
-                const moonX = canvas.width * 0.2 + (timeProgress * 100);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                ctx.shadowColor = 'white';
-                ctx.shadowBlur = 20;
+            if (timeProgress > 0.15 && timeProgress < 0.85) {
+                const moonP = (timeProgress - 0.15) / 0.7; // 0 to 1 over the night
+                const moonY = canvas.height * 0.15 + Math.abs(0.5 - moonP) * canvas.height * 0.3;
+                const moonX = canvas.width * 0.8 - (moonP * canvas.width * 0.6);
+
+                // Moon glow
+                const mGlow = ctx.createRadialGradient(moonX, moonY, 35, moonX, moonY, 200);
+                mGlow.addColorStop(0, 'rgba(200, 220, 255, 0.4)');
+                mGlow.addColorStop(1, 'rgba(200, 220, 255, 0)');
+                ctx.fillStyle = mGlow;
                 ctx.beginPath();
-                ctx.arc(moonX, moonY, 40, 0, Math.PI * 2);
+                ctx.arc(moonX, moonY, 200, 0, Math.PI * 2);
                 ctx.fill();
+
+                ctx.fillStyle = 'rgba(240, 248, 255, 0.95)';
+                ctx.shadowColor = '#60a5fa';
+                ctx.shadowBlur = 25;
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, 35, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Moon craters
+                ctx.fillStyle = 'rgba(148, 163, 184, 0.3)';
                 ctx.shadowBlur = 0;
+                ctx.beginPath();
+                ctx.arc(moonX - 10, moonY - 10, 8, 0, Math.PI * 2);
+                ctx.arc(moonX + 12, moonY + 5, 5, 0, Math.PI * 2);
+                ctx.arc(moonX - 5, moonY + 15, 6, 0, Math.PI * 2);
+                ctx.fill();
             }
 
             // Stars
             if (timeProgress > 0.2 && timeProgress < 0.8) {
-                const starOpacity = timeProgress > 0.3 && timeProgress < 0.7 ? 1 : 0.5;
+                const starOpacity = timeProgress > 0.3 && timeProgress < 0.7 ? 1 : (timeProgress <= 0.3 ? (timeProgress - 0.2) / 0.1 : (0.8 - timeProgress) / 0.1);
                 ctx.fillStyle = `rgba(255, 255, 255, ${starOpacity})`;
                 stars.forEach(s => {
-                    ctx.globalAlpha = Math.random() * s.alpha * starOpacity;
+                    const twinkle = 0.5 + Math.sin(animTime * 5 + s.x) * 0.5;
+                    ctx.globalAlpha = (s.alpha * starOpacity) * (0.5 + twinkle * 0.5);
                     ctx.beginPath();
-                    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                    ctx.arc(s.x, s.y, s.size * (1 + twinkle * 0.3), 0, Math.PI * 2);
                     ctx.fill();
                 });
+
+                // Occasional shooting star
+                if (Math.random() > 0.99) {
+                    const sx = Math.random() * canvas.width;
+                    const sy = Math.random() * canvas.height * 0.4;
+                    const len = 30 + Math.random() * 80;
+                    ctx.globalAlpha = starOpacity;
+                    const sgrad = ctx.createLinearGradient(sx, sy, sx - len, sy + len * 0.5);
+                    sgrad.addColorStop(0, `rgba(255,255,255,1)`);
+                    sgrad.addColorStop(1, `rgba(255,255,255,0)`);
+                    ctx.strokeStyle = sgrad;
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(sx - len, sy + len * 0.5);
+                    ctx.stroke();
+                }
                 ctx.globalAlpha = 1.0;
             }
 
@@ -1806,32 +2048,39 @@
             const baseAlpha = 0.3 + b.layer * 0.2;
             // Building body with side-lit gradient for 3D depth
             const bGrad = ctx.createLinearGradient(b.x, b.y, b.x + b.w, b.y);
-            bGrad.addColorStop(0, `rgba(10, 18, 35, ${baseAlpha + 0.1})`);
-            bGrad.addColorStop(0.3, `rgba(15, 23, 42, ${baseAlpha})`);
-            bGrad.addColorStop(0.7, `rgba(30, 41, 59, ${baseAlpha})`);
-            bGrad.addColorStop(1, `rgba(20, 30, 50, ${baseAlpha + 0.05})`);
+            bGrad.addColorStop(0, `rgba(10, 18, 35, ${baseAlpha + 0.15})`);
+            bGrad.addColorStop(0.25, `rgba(15, 23, 42, ${baseAlpha + 0.05})`);
+            bGrad.addColorStop(0.75, `rgba(25, 35, 55, ${baseAlpha})`);
+            bGrad.addColorStop(1, `rgba(20, 30, 50, ${baseAlpha + 0.1})`);
             ctx.fillStyle = bGrad;
             ctx.fillRect(b.x, b.y, b.w, b.h);
 
-            // Horizontal floor lines
-            ctx.strokeStyle = `rgba(50, 60, 80, ${baseAlpha * 0.5})`;
-            ctx.lineWidth = 0.5;
+            // Edge highlight for 3D effect
+            ctx.fillStyle = `rgba(100, 116, 139, ${baseAlpha * 0.3})`;
+            ctx.fillRect(b.x + b.w - 2, b.y, 2, b.h);
+
+            // Horizontal floor lines with subtle depth
+            ctx.strokeStyle = `rgba(50, 60, 80, ${baseAlpha * 0.4})`;
+            ctx.lineWidth = 1;
             for (let fy = 25; fy < b.h; fy += 25) {
                 ctx.beginPath();
                 ctx.moveTo(b.x, b.y + fy);
                 ctx.lineTo(b.x + b.w, b.y + fy);
                 ctx.stroke();
+                // highlights under line
+                ctx.fillStyle = `rgba(0, 0, 0, ${baseAlpha * 0.3})`;
+                ctx.fillRect(b.x, b.y + fy, b.w, 2);
             }
 
             // Rooftop
             ctx.fillStyle = `rgba(15, 23, 42, ${baseAlpha + 0.1})`;
             if (b.roofType === 1) {
-                ctx.fillRect(b.x + b.w / 2 - 2, b.y - 20, 4, 20);
+                ctx.fillRect(b.x + b.w / 2 - 4, b.y - 20, 8, 20);
             } else if (b.roofType === 2) {
                 ctx.beginPath();
-                ctx.moveTo(b.x, b.y);
-                ctx.lineTo(b.x + b.w, b.y);
-                ctx.lineTo(b.x + b.w, b.y - 15);
+                ctx.moveTo(b.x - 5, b.y);
+                ctx.lineTo(b.x + b.w + 5, b.y);
+                ctx.lineTo(b.x + b.w / 2, b.y - 20);
                 ctx.fill();
             }
 
@@ -1846,38 +2095,60 @@
                         ctx.lineTo(b.x + d.x, b.y - d.h);
                         ctx.stroke();
                         // Blinking red light
-                        const blinkOn = (Math.sin(animTime * 2 + d.blink * 10) > 0);
+                        const blinkOn = (Math.sin(animTime * 3 + d.blink * 10) > 0);
                         if (blinkOn) {
                             ctx.fillStyle = '#ef4444';
                             ctx.shadowColor = '#ef4444';
-                            ctx.shadowBlur = 6;
+                            ctx.shadowBlur = 8;
                             ctx.beginPath();
-                            ctx.arc(b.x + d.x, b.y - d.h, 2, 0, Math.PI * 2);
+                            ctx.arc(b.x + d.x, b.y - d.h, 2.5, 0, Math.PI * 2);
                             ctx.fill();
                             ctx.shadowBlur = 0;
                         }
                     } else if (d.type === 'ac') {
                         ctx.fillStyle = `rgba(71, 85, 105, ${baseAlpha + 0.3})`;
-                        ctx.fillRect(b.x + d.x, b.y - 6, 12, 6);
-                        ctx.strokeStyle = `rgba(100, 116, 139, ${baseAlpha})`;
-                        ctx.lineWidth = 0.5;
-                        ctx.strokeRect(b.x + d.x, b.y - 6, 12, 6);
+                        ctx.fillRect(b.x + d.x, b.y - 8, 14, 8);
+                        ctx.strokeStyle = `rgba(15, 23, 42, ${baseAlpha})`;
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(b.x + d.x, b.y - 8, 14, 8);
+                        // Fan circle
+                        ctx.fillStyle = `rgba(15, 23, 42, ${baseAlpha + 0.2})`;
+                        ctx.beginPath();
+                        ctx.arc(b.x + d.x + 7, b.y - 4, 3, 0, Math.PI * 2);
+                        ctx.fill();
                     } else if (d.type === 'tank') {
                         ctx.fillStyle = `rgba(51, 65, 85, ${baseAlpha + 0.3})`;
-                        ctx.fillRect(b.x + d.x, b.y - 18, 16, 18);
+                        ctx.beginPath();
+                        ctx.roundRect(b.x + d.x, b.y - 22, 18, 20, 4);
+                        ctx.fill();
                         // Tank legs
-                        ctx.fillRect(b.x + d.x + 2, b.y - 22, 2, 4);
-                        ctx.fillRect(b.x + d.x + 12, b.y - 22, 2, 4);
+                        ctx.fillRect(b.x + d.x + 2, b.y - 26, 2, 4);
+                        ctx.fillRect(b.x + d.x + 14, b.y - 26, 2, 4);
                     } else if (d.type === 'dish') {
                         ctx.strokeStyle = `rgba(148, 163, 184, ${baseAlpha + 0.3})`;
-                        ctx.lineWidth = 1.5;
+                        ctx.lineWidth = 2;
                         ctx.beginPath();
-                        ctx.arc(b.x + d.x, b.y - 4, 6, Math.PI, 0);
+                        ctx.arc(b.x + d.x, b.y - 6, 8, Math.PI * 1.2, Math.PI * 2.8);
                         ctx.stroke();
                         ctx.beginPath();
-                        ctx.moveTo(b.x + d.x, b.y - 4);
-                        ctx.lineTo(b.x + d.x, b.y);
+                        ctx.moveTo(b.x + d.x, b.y - 6);
+                        ctx.lineTo(b.x + d.x - 4, b.y);
                         ctx.stroke();
+                    } else if (d.type === 'billboard') {
+                        // Billboard posts
+                        ctx.fillStyle = `rgba(51, 65, 85, ${baseAlpha + 0.2})`;
+                        ctx.fillRect(b.x + d.x + 10, b.y - 30, 4, 30);
+                        ctx.fillRect(b.x + d.x + 40, b.y - 30, 4, 30);
+                        // Billboard screen
+                        ctx.fillStyle = '#0f172a';
+                        ctx.fillRect(b.x + d.x, b.y - 45, 54, 25);
+                        ctx.fillStyle = d.color;
+                        ctx.shadowColor = d.color;
+                        ctx.shadowBlur = 15;
+                        ctx.globalAlpha = 0.8 + Math.sin(animTime * 2 + b.x) * 0.2; // pulse
+                        ctx.fillRect(b.x + d.x + 2, b.y - 43, 50, 21);
+                        ctx.globalAlpha = 1.0;
+                        ctx.shadowBlur = 0;
                     }
                 });
             }
@@ -1885,12 +2156,14 @@
             // Balconies
             if (b.balconies) {
                 b.balconies.forEach(bal => {
-                    const bx = bal.side === 'left' ? b.x - 4 : b.x + b.w;
+                    const bx = bal.side === 'left' ? b.x - 6 : b.x + b.w;
                     ctx.fillStyle = `rgba(51, 65, 85, ${baseAlpha + 0.2})`;
-                    ctx.fillRect(bx, b.y + bal.y, bal.side === 'left' ? 5 : 4, 3);
+                    ctx.beginPath();
+                    ctx.roundRect(bx, b.y + bal.y, 6, 4, 1);
+                    ctx.fill();
                     ctx.strokeStyle = `rgba(100, 116, 139, ${baseAlpha})`;
-                    ctx.lineWidth = 0.5;
-                    ctx.strokeRect(bx, b.y + bal.y - 12, bal.side === 'left' ? 5 : 4, 15);
+                    ctx.lineWidth = 0.8;
+                    ctx.strokeRect(bx, b.y + bal.y - 14, 6, 18);
                 });
             }
 
@@ -1901,17 +2174,27 @@
                 b.windows.forEach(win => {
                     let lightOn = (isNight || isStormy) && win.lightSeed > 0.4;
                     if (lightOn) {
-                        ctx.fillStyle = `rgba(253, 224, 71, ${0.4 + b.layer * 0.2})`;
-                        ctx.shadowColor = '#facc15';
-                        ctx.shadowBlur = 5;
+                        // Different window light temperatures (warm/cool)
+                        const isWarm = win.colorTheme > 0.5;
+                        ctx.fillStyle = isWarm ? `rgba(253, 224, 71, ${0.5 + b.layer * 0.2})` : `rgba(224, 242, 254, ${0.5 + b.layer * 0.2})`;
+                        ctx.shadowColor = isWarm ? '#facc15' : '#7dd3fc';
+                        ctx.shadowBlur = 8;
                     } else {
-                        ctx.fillStyle = `rgba(0,0,0,0.4)`;
+                        // Dark reflections
+                        ctx.fillStyle = `rgba(15, 23, 42, 0.6)`;
                         ctx.shadowBlur = 0;
                     }
                     ctx.fillRect(b.x + win.x, b.y + win.y, win.w, win.h);
+
+                    if (lightOn) {
+                        // Window sill / blinds silouhette
+                        ctx.fillStyle = `rgba(0, 0, 0, 0.3)`;
+                        ctx.fillRect(b.x + win.x, b.y + win.y, win.w, win.h * 0.3); // half drawn blind
+                    }
+
                     // Window frame
-                    ctx.strokeStyle = `rgba(71, 85, 105, ${baseAlpha * 0.3})`;
-                    ctx.lineWidth = 0.3;
+                    ctx.strokeStyle = `rgba(51, 65, 85, ${baseAlpha * 0.4})`;
+                    ctx.lineWidth = 0.8;
                     ctx.strokeRect(b.x + win.x, b.y + win.y, win.w, win.h);
                     ctx.shadowBlur = 0;
                 });
@@ -1922,8 +2205,18 @@
                 const ns = b.neonSign;
                 ctx.fillStyle = ns.color;
                 ctx.shadowColor = ns.color;
-                ctx.shadowBlur = 10;
-                ctx.fillRect(b.x + ns.x, b.y + ns.y, ns.w, ns.h);
+                ctx.shadowBlur = 15;
+                if (ns.style === 0) {
+                    ctx.fillRect(b.x + ns.x, b.y + ns.y, ns.w, ns.h);
+                } else if (ns.style === 1) {
+                    // Lines of text
+                    ctx.fillRect(b.x + ns.x, b.y + ns.y, ns.w, 2);
+                    ctx.fillRect(b.x + ns.x, b.y + ns.y + 4, ns.w * 0.8, 2);
+                    ctx.fillRect(b.x + ns.x, b.y + ns.y + 8, ns.w * 0.6, 2);
+                } else {
+                    // Vertical sign
+                    ctx.fillRect(b.x + ns.x, b.y + ns.y, 6, ns.h * 2);
+                }
                 ctx.shadowBlur = 0;
             }
         }
@@ -1935,18 +2228,18 @@
 
             // Roots
             if (t.roots) {
-                ctx.strokeStyle = `rgba(80, 50, 20, ${baseAlpha + 0.15})`;
-                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = `rgba(80, 50, 20, ${baseAlpha + 0.2})`;
+                ctx.lineWidth = 3 + t.trunkW * 0.1;
                 t.roots.forEach(root => {
-                    const rootStartX = cx + root.side * t.trunkW * 0.3;
-                    const rootStartY = t.y + t.h;
+                    const rootStartX = cx + root.side * t.trunkW * 0.4;
+                    const rootStartY = t.y + t.h - 5;
                     ctx.beginPath();
                     ctx.moveTo(rootStartX, rootStartY);
                     ctx.quadraticCurveTo(
                         rootStartX + root.side * root.len * 0.6,
                         rootStartY + root.curve,
                         rootStartX + root.side * root.len,
-                        rootStartY + 4
+                        rootStartY + 10
                     );
                     ctx.stroke();
                 });
@@ -1954,84 +2247,120 @@
 
             // Trunk with gradient
             const trunkGrad = ctx.createLinearGradient(cx - t.trunkW / 2, t.y, cx + t.trunkW / 2, t.y);
-            trunkGrad.addColorStop(0, `rgba(80, 50, 20, ${baseAlpha + 0.25})`);
-            trunkGrad.addColorStop(0.4, `rgba(101, 67, 33, ${baseAlpha + 0.2})`);
-            trunkGrad.addColorStop(1, `rgba(70, 45, 18, ${baseAlpha + 0.2})`);
+            trunkGrad.addColorStop(0, `rgba(60, 35, 15, ${baseAlpha + 0.2})`);
+            trunkGrad.addColorStop(0.3, `rgba(101, 67, 33, ${baseAlpha + 0.15})`);
+            trunkGrad.addColorStop(0.8, `rgba(139, 90, 43, ${baseAlpha + 0.15})`);
+            trunkGrad.addColorStop(1, `rgba(70, 45, 18, ${baseAlpha + 0.1})`);
             ctx.fillStyle = trunkGrad;
-            ctx.fillRect(cx - t.trunkW / 2, t.y, t.trunkW, t.h);
+
+            // Draw curved trunk
+            ctx.beginPath();
+            ctx.moveTo(cx - t.trunkW / 2, t.y + t.h);
+            ctx.lineTo(cx - t.trunkW * 0.3, t.y);
+            ctx.lineTo(cx + t.trunkW * 0.3, t.y);
+            ctx.lineTo(cx + t.trunkW / 2, t.y + t.h);
+            ctx.closePath();
+            ctx.fill();
 
             // Bark texture (pre-seeded)
             if (t.barkLines) {
-                ctx.strokeStyle = `rgba(60, 35, 12, ${baseAlpha * 0.6})`;
-                ctx.lineWidth = 0.7;
+                ctx.strokeStyle = `rgba(40, 20, 5, ${baseAlpha * 0.7})`;
+                ctx.lineWidth = 1;
                 t.barkLines.forEach(bl => {
                     ctx.beginPath();
-                    ctx.moveTo(cx - t.trunkW / 2 + 2, t.y + bl.y);
-                    ctx.quadraticCurveTo(cx + bl.curve, t.y + bl.y + 2, cx + t.trunkW / 2 - 2, t.y + bl.y + 1);
+                    ctx.moveTo(cx - t.trunkW * 0.3, t.y + bl.y);
+                    ctx.quadraticCurveTo(cx + bl.curve, t.y + bl.y + 3, cx + t.trunkW * 0.3, t.y + bl.y + 1);
                     ctx.stroke();
+                });
+            }
+
+            // Trunk Moss
+            if (t.mosses) {
+                ctx.fillStyle = `rgba(34, 139, 34, ${baseAlpha + 0.2})`;
+                t.mosses.forEach(m => {
+                    ctx.beginPath();
+                    ctx.arc(cx + m.side * t.trunkW * 0.3, t.y + m.y, m.size, 0, Math.PI * 2);
+                    ctx.fill();
                 });
             }
 
             // Branches
             if (t.branches) {
-                ctx.strokeStyle = `rgba(80, 50, 20, ${baseAlpha + 0.15})`;
+                ctx.strokeStyle = `rgba(80, 50, 20, ${baseAlpha + 0.2})`;
                 ctx.lineCap = 'round';
                 t.branches.forEach(br => {
                     const bStartY = t.y + t.h * br.yFrac;
                     const bEndX = cx + br.side * br.len;
                     const bEndY = bStartY - br.len * br.angle;
-                    ctx.lineWidth = 3;
+                    ctx.lineWidth = br.width;
                     ctx.beginPath();
                     ctx.moveTo(cx, bStartY);
                     ctx.quadraticCurveTo(
                         cx + br.side * br.len * 0.5,
-                        bStartY - br.len * 0.2,
+                        bStartY - br.len * 0.3,
                         bEndX, bEndY
                     );
                     ctx.stroke();
                 });
             }
 
-            // Canopy
+            // Canopy colors (4 shades)
             const greens = [
                 [22, 101, 52],
                 [34, 139, 34],
-                [74, 222, 128]
+                [74, 222, 128],
+                [13, 148, 136] // Teal/Jungle green
             ];
             const gc = greens[t.leafShade];
-            const canopyY = t.y - t.canopySize * 0.6;
+            const canopyY = t.y - t.canopySize * 0.5;
 
             if (t.canopyType === 'round') {
                 // Multiple overlapping circles with depth
-                for (let i = 0; i < 5; i++) {
-                    const offX = (i - 2) * t.canopySize * 0.28;
-                    const offY = -Math.abs(i - 2) * 6;
-                    const r = t.canopySize * (0.6 + (2 - Math.abs(i - 2)) * 0.12);
-                    const shade = Math.min(255, gc[1] + i * 10);
-                    ctx.fillStyle = `rgba(${gc[0]}, ${shade}, ${gc[2]}, ${baseAlpha + 0.1})`;
+                for (let i = 0; i < 6; i++) {
+                    const offX = (i - 2.5) * t.canopySize * 0.3;
+                    const offY = -Math.abs(i - 2.5) * 8;
+                    const r = t.canopySize * (0.6 + (2.5 - Math.abs(i - 2.5)) * 0.15);
+                    const shade = Math.min(255, gc[1] + i * 12);
+                    ctx.fillStyle = `rgba(${gc[0]}, ${shade}, ${gc[2]}, ${baseAlpha + 0.15})`;
                     ctx.beginPath();
                     ctx.arc(cx + offX, canopyY + offY, r, 0, Math.PI * 2);
                     ctx.fill();
                 }
                 // Canopy highlight
-                ctx.fillStyle = `rgba(${Math.min(255, gc[0] + 30)}, ${Math.min(255, gc[1] + 40)}, ${Math.min(255, gc[2] + 20)}, ${baseAlpha * 0.3})`;
+                ctx.fillStyle = `rgba(${Math.min(255, gc[0] + 40)}, ${Math.min(255, gc[1] + 50)}, ${Math.min(255, gc[2] + 30)}, ${baseAlpha * 0.4})`;
                 ctx.beginPath();
-                ctx.arc(cx - t.canopySize * 0.15, canopyY - t.canopySize * 0.2, t.canopySize * 0.35, 0, Math.PI * 2);
+                ctx.arc(cx - t.canopySize * 0.2, canopyY - t.canopySize * 0.3, t.canopySize * 0.4, 0, Math.PI * 2);
                 ctx.fill();
-            } else {
-                // Pine tree: stacked triangles with snow-tip feel
-                for (let i = 0; i < 4; i++) {
-                    const tier = t.canopySize * (1.3 - i * 0.2);
-                    const tierY = canopyY + i * t.canopySize * 0.35;
-                    const shade = Math.min(255, gc[1] + i * 15);
-                    ctx.fillStyle = `rgba(${gc[0]}, ${shade}, ${gc[2]}, ${baseAlpha + 0.1})`;
+            } else if (t.canopyType === 'pine') {
+                // Pine tree: stacked triangles
+                for (let i = 0; i < 5; i++) {
+                    const tier = t.canopySize * (1.4 - i * 0.25);
+                    const tierY = canopyY + i * t.canopySize * 0.4;
+                    const shade = Math.min(255, gc[1] + i * 20);
+                    ctx.fillStyle = `rgba(${gc[0]}, ${shade}, ${gc[2]}, ${baseAlpha + 0.15})`;
                     ctx.beginPath();
-                    ctx.moveTo(cx, tierY - tier * 0.6);
-                    ctx.lineTo(cx - tier, tierY + tier * 0.35);
-                    ctx.lineTo(cx + tier, tierY + tier * 0.35);
+                    ctx.moveTo(cx, tierY - tier * 0.8);
+                    ctx.lineTo(cx - tier, tierY + tier * 0.4);
+                    ctx.lineTo(cx + tier, tierY + tier * 0.4);
                     ctx.closePath();
                     ctx.fill();
                 }
+            } else if (t.canopyType === 'umbrella') {
+                // African umbrella thorn style
+                ctx.fillStyle = `rgba(${gc[0]}, ${gc[1]}, ${gc[2]}, ${baseAlpha + 0.15})`;
+                ctx.beginPath();
+                ctx.ellipse(cx, canopyY - t.canopySize * 0.2, t.canopySize * 1.5, t.canopySize * 0.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = `rgba(${Math.min(255, gc[0] + 30)}, ${Math.min(255, gc[1] + 30)}, ${gc[2]}, ${baseAlpha * 0.4})`;
+                ctx.beginPath();
+                ctx.ellipse(cx, canopyY - t.canopySize * 0.3, t.canopySize * 1.2, t.canopySize * 0.2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Tall poplar / cypress style
+                ctx.fillStyle = `rgba(${gc[0]}, ${gc[1]}, ${gc[2]}, ${baseAlpha + 0.15})`;
+                ctx.beginPath();
+                ctx.ellipse(cx, t.y - t.canopySize, t.canopySize * 0.4, t.canopySize * 1.5, 0, 0, Math.PI * 2);
+                ctx.fill();
             }
 
             // Leaf clusters on branches
@@ -2041,7 +2370,7 @@
                     const bStartY = t.y + t.h * lc.yFrac;
                     const bEndX = cx + lc.side * lc.len;
                     const bEndY = bStartY - lc.len * lc.angle;
-                    ctx.fillStyle = `rgba(${lcGC[0]}, ${lcGC[1]}, ${lcGC[2]}, ${baseAlpha + 0.15})`;
+                    ctx.fillStyle = `rgba(${lcGC[0]}, ${lcGC[1]}, ${lcGC[2]}, ${baseAlpha + 0.2})`;
                     ctx.beginPath();
                     ctx.arc(bEndX, bEndY, lc.size, 0, Math.PI * 2);
                     ctx.fill();
@@ -2052,22 +2381,23 @@
             if (t.vines) {
                 t.vines.forEach(v => {
                     const vx = cx + v.xOff;
-                    const vy = canopyY + t.canopySize * 0.3;
-                    const sway = Math.sin(animTime * 0.5 + v.sway) * 5;
-                    ctx.strokeStyle = `rgba(22, 163, 74, ${baseAlpha + 0.15})`;
-                    ctx.lineWidth = 1.2;
+                    const vy = canopyY + t.canopySize * 0.2;
+                    const sway = Math.sin(animTime * 0.8 + v.sway) * 8;
+                    const thick = 1 + (v.len / 40);
+                    ctx.strokeStyle = `rgba(22, 163, 74, ${baseAlpha + 0.2})`;
+                    ctx.lineWidth = thick;
                     ctx.beginPath();
                     ctx.moveTo(vx, vy);
                     ctx.quadraticCurveTo(vx + sway, vy + v.len * 0.5, vx + sway * 0.5, vy + v.len);
                     ctx.stroke();
                     // Leaflets along vine
                     if (v.leaflets) {
-                        ctx.fillStyle = `rgba(34, 197, 94, ${baseAlpha + 0.1})`;
-                        for (let vl = 0.3; vl < 1; vl += 0.3) {
-                            const lx = vx + sway * vl;
+                        ctx.fillStyle = `rgba(74, 222, 128, ${baseAlpha + 0.15})`;
+                        for (let vl = 0.2; vl < 1; vl += 0.25) {
+                            const lx = vx + sway * Math.sin(vl * Math.PI) * 0.8;
                             const ly = vy + v.len * vl;
                             ctx.beginPath();
-                            ctx.ellipse(lx + 3, ly, 3, 1.5, 0.5, 0, Math.PI * 2);
+                            ctx.ellipse(lx + 4, ly, 4, 2, 0.5, 0, Math.PI * 2);
                             ctx.fill();
                         }
                     }
@@ -2094,9 +2424,14 @@
         pauseOverlay.id = 'pause-overlay';
         pauseOverlay.className = 'overlay hidden';
         pauseOverlay.innerHTML = `
-            <h2 class="text-4xl sm:text-6xl font-black text-white mb-4 uppercase tracking-tight">Paused</h2>
-            <p class="text-slate-400 text-sm uppercase tracking-widest mb-8">Press P or tap Resume to continue</p>
-            <button id="resume-btn" class="btn-start">Resume</button>
+            <div class="flex flex-col items-center gap-6">
+                <h2 class="text-4xl sm:text-6xl font-black text-white uppercase tracking-tight shadow-xl">Paused</h2>
+                <p class="text-slate-400 text-sm uppercase tracking-widest text-shadow">Press P or tap Resume to continue</p>
+                <div class="flex flex-wrap items-center justify-center gap-4 mt-4">
+                    <button id="resume-btn" class="btn-start shadow-lg shadow-blue-500/50">Resume</button>
+                    <button id="mute-btn" class="btn-start shadow-lg shadow-purple-500/50" style="background-image: linear-gradient(to right, #6b21a8, #9333ea);">Sound: ON</button>
+                </div>
+            </div>
         `;
         document.getElementById('game-container').appendChild(pauseOverlay);
 
@@ -2129,6 +2464,18 @@
             togglePause();
         });
 
+        pauseOverlay.querySelector('#mute-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isMuted = SoundSys.toggleMute();
+            e.target.innerText = isMuted ? 'Sound: OFF' : 'Sound: ON';
+        });
+        pauseOverlay.querySelector('#mute-btn').addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const isMuted = SoundSys.toggleMute();
+            e.target.innerText = isMuted ? 'Sound: OFF' : 'Sound: ON';
+        });
+
         function loseLife() {
             lives--;
             updateLivesUI();
@@ -2140,17 +2487,21 @@
             invincibleTimer = 120; // ~2 seconds of invincibility
             player.vy = 0;
             player.vx = 0;
-            // Find nearest platform ahead of camera
-            let bestPlatform = platforms[0];
+            // Find nearest platform ahead of or at the camera
+            let bestPlatform = platforms[platforms.length - 1];
             for (const p of platforms) {
-                if (p.x + p.w > cameraX && p.x < cameraX + canvas.width) {
+                if (p.x + p.w > cameraX + 100) {
                     bestPlatform = p;
                     break;
                 }
             }
-            player.x = bestPlatform.x + bestPlatform.w * 0.3;
+            player.x = Math.max(bestPlatform.x + 50, cameraX + 100);
             player.y = bestPlatform.y - player.height - 10;
             player.isGrounded = false;
+
+            // Snap the camera back so the player is always visible at x=100 from the left
+            cameraX = player.x - 100;
+
             // Flash screen red
             weather.flashOpacity = 0.4;
             createParticles(player.x + player.width / 2, player.y + player.height / 2, 15, '#ef4444');
