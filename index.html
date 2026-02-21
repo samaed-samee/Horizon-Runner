@@ -840,7 +840,7 @@
 
         // Player
         const player = {
-            x: 100,
+            x: 0, // Will be set to center on init
             y: 0,
             width: 25,
             height: 70,
@@ -1171,7 +1171,7 @@
             SoundSys.init();
             if (SoundSys.ctx.state === 'suspended') SoundSys.ctx.resume();
 
-            player.x = 100;
+            player.x = canvas.width / 2 - player.width / 2;
             player.y = canvas.height - 200;
             player.vx = 0;
             player.vy = 0;
@@ -3307,12 +3307,12 @@
                     break;
                 }
             }
-            player.x = Math.max(bestPlatform.x + 50, cameraX + 100);
+            player.x = Math.max(bestPlatform.x + 50, cameraX + canvas.width / 2 - player.width / 2);
             player.y = bestPlatform.y - player.height - 10;
             player.isGrounded = false;
 
-            // Snap the camera back so the player is always visible at x=100 from the left
-            cameraX = player.x - 100;
+            // Snap the camera back so the player is always visible at center
+            cameraX = player.x - canvas.width / 2 + player.width / 2;
 
             // Flash screen red
             weather.flashOpacity = 0.4;
