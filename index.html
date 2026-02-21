@@ -305,17 +305,24 @@
             <div class="text-sm text-slate-400">This game is best played in landscape mode</div>
         </div>
 
-        <!-- Start Screen -->
-        <div id="start-screen" class="overlay">
+        <div id="start-screen" class="overlay flex flex-col items-center justify-center p-4">
             <h1
-                class="text-4xl sm:text-6xl md:text-8xl font-black text-white mb-2 tracking-tighter uppercase italic drop-shadow-2xl">
-                Horizon</h1>
-            <h2 class="text-base sm:text-xl text-slate-400 uppercase tracking-[0.5em] font-light mb-8 sm:mb-12">Urban
-                Parkour</h2>
+                class="text-5xl sm:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-500 mb-2 uppercase tracking-tighter text-shadow-glow animate-pulse">
+                Horizon Runner
+            </h1>
+            <p class="text-slate-300 mb-8 tracking-widest text-sm sm:text-base font-semibold uppercase">Urban Parkour
+            </p>
 
-            <button id="start-btn" class="btn-start">
-                Begin Run
-            </button>
+            <div class="flex gap-4 mb-8">
+                <button id="btn-skin-default"
+                    class="px-4 py-2 bg-slate-800 border-2 border-cyan-400 text-cyan-400 font-bold rounded shadow-[0_0_10px_1px_rgba(34,211,238,0.5)] transition-all">Office</button>
+                <button id="btn-skin-batman"
+                    class="px-4 py-2 bg-slate-900 border-2 border-yellow-500 text-yellow-500 font-bold rounded shadow-[0_0_10px_1px_rgba(234,179,8,0.5)] transition-all opacity-50">Batman</button>
+                <button id="btn-skin-superman"
+                    class="px-4 py-2 bg-blue-900 border-2 border-red-500 text-red-500 font-bold rounded shadow-[0_0_10px_1px_rgba(239,68,68,0.5)] transition-all opacity-50">Superman</button>
+            </div>
+
+            <button id="start-btn" class="btn-start shadow-[0_0_20px_2px_rgba(244,63,94,0.6)] mb-8">START RUN</button>
 
             <div
                 class="key-hint-row mt-6 sm:mt-8 text-slate-400 text-xs uppercase tracking-widest font-medium flex gap-6">
@@ -1358,77 +1365,183 @@
             ctx.save();
             ctx.translate(hipsX, hipsY);
 
+            // Arm Colors
+            let backArmSleeveColor, backArmSkinColor, frontArmSleeveColor, frontArmSkinColor;
+            if (player.skin === 'default') {
+                backArmSleeveColor = '#cbd5e1'; backArmSkinColor = '#fed7aa';
+                frontArmSleeveColor = '#f8fafc'; frontArmSkinColor = '#ffedd5';
+            } else if (player.skin === 'batman') {
+                backArmSleeveColor = '#4b5563'; backArmSkinColor = '#111827'; // Gray sleeve, black glove
+                frontArmSleeveColor = '#374151'; frontArmSkinColor = '#030712';
+            } else if (player.skin === 'superman') {
+                backArmSleeveColor = '#1e40af'; backArmSkinColor = '#fed7aa'; // Blue sleeve, bare hand
+                frontArmSleeveColor = '#1d4ed8'; frontArmSkinColor = '#ffedd5';
+            }
+
+            // Leg Colors
+            let backLegTopColor, backLegBotColor, frontLegTopColor, frontLegBotColor;
+            if (player.skin === 'default') {
+                backLegTopColor = '#1e293b'; backLegBotColor = '#0f172a';
+                frontLegTopColor = '#0f172a'; frontLegBotColor = '#020617';
+            } else if (player.skin === 'batman') {
+                backLegTopColor = '#4b5563'; backLegBotColor = '#111827'; // Gray thigh, black boot
+                frontLegTopColor = '#374151'; frontLegBotColor = '#030712';
+            } else if (player.skin === 'superman') {
+                backLegTopColor = '#1e40af'; backLegBotColor = '#b91c1c'; // Blue thigh, red boot
+                frontLegTopColor = '#1d4ed8'; frontLegBotColor = '#991b1b';
+            }
+
             // Back Arm (Left)
             ctx.save();
             ctx.rotate(leanAngle);
             ctx.translate(0, -24); // move to shoulder
             ctx.rotate(-leanAngle); // un-lean so arm hangs straight down at angle 0
-            drawArm(0, 0, lShoulderAngle, lElbowBend, '#cbd5e1', '#fed7aa', false);
+            drawArm(0, 0, lShoulderAngle, lElbowBend, backArmSleeveColor, backArmSkinColor, false, player.skin);
             ctx.restore();
 
             // Back Leg (Left)
-            drawLeg(0, 0, lThighAngle, lKneeBend, '#1e293b', '#0f172a');
+            drawLeg(0, 0, lThighAngle, lKneeBend, backLegTopColor, backLegBotColor, player.skin);
+
+            // Cape (Behind torso, drawn first)
+            if (player.skin === 'batman' || player.skin === 'superman') {
+                ctx.fillStyle = player.skin === 'batman' ? '#111827' : '#dc2626';
+                ctx.beginPath();
+                ctx.moveTo(-2, -26); // Left shoulder
+                ctx.lineTo(6, -26);  // Right shoulder
+
+                // Advanced sweeping cape physics
+                // Base swing controlled by jumping or running. 
+                const baseSwing = isJumping ? 1.0 - (player.vy / 15) : Math.sin(runCycle * 1.5) * 1.0 + 0.8;
+
+                // Secondary flutters for the fabric ripples (using animTime for independence from runCycle)
+                const flutter1 = Math.sin(animTime * 12) * 5;
+                const flutter2 = Math.cos(animTime * 15) * 3;
+
+                if (player.skin === 'batman') {
+                    // Scalloped bat-cape (Swinging backwards -> negative X)
+                    ctx.quadraticCurveTo(-10 - baseSwing * 15, -5 + flutter1, -15 - baseSwing * 20, 15 + flutter2); // Right edge
+                    // Scallop bottom
+                    ctx.quadraticCurveTo(-8 - baseSwing * 20, 10, -5 - baseSwing * 22, 22 + flutter1);
+                    ctx.quadraticCurveTo(2 - baseSwing * 22, 12, 8 - baseSwing * 25, 23 + flutter2);
+                    ctx.quadraticCurveTo(14 - baseSwing * 25, 12, 18 - baseSwing * 30, 20 + flutter1);
+                    // Left edge
+                    ctx.quadraticCurveTo(10 - baseSwing * 15, 0, -2, -26);
+                } else {
+                    // Straight/flowing superman cape (Swinging backwards -> negative X)
+                    ctx.quadraticCurveTo(-15 - baseSwing * 10, -5, -12 - baseSwing * 20 + flutter1, 22 + flutter2); // Bottom right tip
+                    ctx.quadraticCurveTo(5 - baseSwing * 10 + flutter2, 24, 18 - baseSwing * 30 + flutter1, 26 + flutter1); // Bottom left tip
+                    ctx.quadraticCurveTo(5, 0, -2, -26); // Left edge back to shoulder
+                }
+                ctx.fill();
+            }
 
             // Torso (Context is at hips, rotated by lean)
             ctx.save();
             ctx.rotate(leanAngle);
 
-            // Shirt Base
-            ctx.fillStyle = '#f8fafc';
-            ctx.beginPath();
-            ctx.moveTo(-3, -26);
-            ctx.lineTo(5, -26);
-            ctx.lineTo(7, -22); // Shoulder
-            ctx.lineTo(5, 0);   // Waist front
-            ctx.lineTo(-4, 0);  // Waist back
-            ctx.lineTo(-6, -22); // Shoulder back
-            ctx.closePath();
-            ctx.fill();
+            if (player.skin === 'default') {
+                // ... Office Worker Torso ...
+                // Shirt Base
+                ctx.fillStyle = '#f8fafc';
+                ctx.beginPath();
+                ctx.moveTo(-3, -26);
+                ctx.lineTo(5, -26);
+                ctx.lineTo(7, -22); // Shoulder
+                ctx.lineTo(5, 0);   // Waist front
+                ctx.lineTo(-4, 0);  // Waist back
+                ctx.lineTo(-6, -22); // Shoulder back
+                ctx.closePath();
+                ctx.fill();
 
-            // Shirt folds / shading
-            ctx.strokeStyle = '#e2e8f0';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(3, -22);
-            ctx.lineTo(1, -5);
-            ctx.stroke();
+                // Shirt folds / shading
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(3, -22);
+                ctx.lineTo(1, -5);
+                ctx.stroke();
 
-            // Collar
-            ctx.fillStyle = '#f1f5f9';
-            ctx.beginPath();
-            ctx.moveTo(-2, -26);
-            ctx.lineTo(4, -26);
-            ctx.lineTo(1, -21);
-            ctx.closePath();
-            ctx.fill();
+                // Collar
+                ctx.fillStyle = '#f1f5f9';
+                ctx.beginPath();
+                ctx.moveTo(-2, -26);
+                ctx.lineTo(4, -26);
+                ctx.lineTo(1, -21);
+                ctx.closePath();
+                ctx.fill();
 
-            // Red Tie (flowing wide)
-            ctx.fillStyle = '#dc2626';
-            ctx.beginPath();
-            ctx.moveTo(-1, -24);
-            ctx.lineTo(3, -24);
+                // Red Tie
+                ctx.fillStyle = '#dc2626';
+                ctx.beginPath();
+                ctx.moveTo(-1, -24);
+                ctx.lineTo(3, -24);
+                const tieSwing = isJumping ? 1.0 - (player.vy / 15) : Math.sin(runCycle * 2) * 1.0 + 0.8;
+                ctx.lineTo(1 + tieSwing * 5, -8);
+                ctx.lineTo(-2 + tieSwing * 5, -8);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = '#b91c1c'; // dark tip
+                ctx.beginPath();
+                ctx.moveTo(-2 + tieSwing * 5, -8);
+                ctx.lineTo(1 + tieSwing * 5, -8);
+                ctx.lineTo(-0.5 + tieSwing * 8, -2);
+                ctx.closePath();
+                ctx.fill();
 
-            // Dynamic Tie physics
-            const tieSwing = isJumping ? 1.0 - (player.vy / 15) : Math.sin(runCycle * 2) * 1.0 + 0.8;
+                // Belt & Tucked Shirt Line
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(-5, -2, 11, 3);
+                ctx.fillStyle = '#cbd5e1'; // Buckle
+                ctx.fillRect(0, -2, 3, 3);
+            } else {
+                // Superhero Torso
+                const suitColor = player.skin === 'batman' ? '#374151' : '#1d4ed8'; // Dark gray or Blue
+                const beltColor = '#eab308'; // Yellow belt
 
-            ctx.lineTo(1 + tieSwing * 5, -8);
-            ctx.lineTo(-2 + tieSwing * 5, -8);
-            ctx.closePath();
-            ctx.fill();
+                // Suit Base
+                ctx.fillStyle = suitColor;
+                ctx.beginPath();
+                ctx.moveTo(-3, -26);
+                ctx.lineTo(5, -26);
+                ctx.lineTo(7, -22);
+                ctx.lineTo(5, 0);
+                ctx.lineTo(-4, 0);
+                ctx.lineTo(-6, -22);
+                ctx.closePath();
+                ctx.fill();
 
-            ctx.fillStyle = '#b91c1c'; // dark tip
-            ctx.beginPath();
-            ctx.moveTo(-2 + tieSwing * 5, -8);
-            ctx.lineTo(1 + tieSwing * 5, -8);
-            ctx.lineTo(-0.5 + tieSwing * 8, -2);
-            ctx.closePath();
-            ctx.fill();
+                // Chest Logo Placeholder
+                ctx.fillStyle = player.skin === 'batman' ? '#000' : '#dc2626';
+                ctx.beginPath();
+                if (player.skin === 'batman') {
+                    // Bat logo (simplified ellipse)
+                    ctx.ellipse(1, -16, 4, 2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // S logo (simplified diamond)
+                    ctx.moveTo(1, -19);
+                    ctx.lineTo(5, -16);
+                    ctx.lineTo(1, -12);
+                    ctx.lineTo(-3, -16);
+                    ctx.fill();
+                    ctx.fillStyle = '#eab308'; // yellow center
+                    ctx.beginPath();
+                    ctx.moveTo(1, -17);
+                    ctx.lineTo(3, -16);
+                    ctx.lineTo(1, -14);
+                    ctx.lineTo(-1, -16);
+                    ctx.fill();
+                }
 
-            // Belt & Tucked Shirt Line
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(-5, -2, 11, 3);
-            ctx.fillStyle = '#cbd5e1'; // Buckle
-            ctx.fillRect(0, -2, 3, 3);
+                // Belt
+                ctx.fillStyle = beltColor;
+                ctx.fillRect(-5, -2, 11, 3);
+
+                // Trunks
+                const trunksColor = player.skin === 'batman' ? '#111827' : '#dc2626';
+                ctx.fillStyle = trunksColor;
+                ctx.fillRect(-4, 1, 9, 3);
+            }
 
             // Head (attached to neck)
             ctx.save();
@@ -1458,86 +1571,160 @@
             ctx.lineTo(7, 2);
             ctx.fill();
 
-            // Office Hair (Dynamic flutter)
-            // Enhanced sine waves for complex fluttering
-            const hairBase = isJumping ? -3 + (player.vy / 10) * 2 : -1.5;
-            const hairS1 = hairBase + (isJumping ? 0 : Math.sin(runCycle * 4) * 2.5);
-            const hairS2 = hairBase + (isJumping ? 0 : Math.cos(runCycle * 3) * 1.5);
+            if (player.skin === 'default') {
+                // Office Hair (Dynamic flutter)
+                const hairBase = isJumping ? -3 + (player.vy / 10) * 2 : -1.5;
+                const hairS1 = hairBase + (isJumping ? 0 : Math.sin(runCycle * 4) * 2.5);
+                const hairS2 = hairBase + (isJumping ? 0 : Math.cos(runCycle * 3) * 1.5);
 
-            ctx.fillStyle = '#452b17';
-            ctx.beginPath();
-            // Start at front forehead
-            ctx.moveTo(-9, -2);
-            // Sweep up and back with dynamic flutter
-            ctx.quadraticCurveTo(-11 + hairS1, -12 + hairS2, 0, -14);
-            // Top of head
-            ctx.quadraticCurveTo(8, -13, 9, -5);
-            // Bangs
-            ctx.quadraticCurveTo(5, -10, -2, -8);
-            // Back to start
-            ctx.quadraticCurveTo(-7, -8, -9, -2);
-            ctx.fill();
+                ctx.fillStyle = '#452b17';
+                ctx.beginPath();
+                ctx.moveTo(-9, -2);
+                ctx.quadraticCurveTo(-11 + hairS1, -12 + hairS2, 0, -14);
+                ctx.quadraticCurveTo(8, -13, 9, -5);
+                ctx.quadraticCurveTo(5, -10, -2, -8);
+                ctx.quadraticCurveTo(-7, -8, -9, -2);
+                ctx.fill();
 
-            // Back hair strands (fluttering separately)
-            ctx.beginPath();
-            ctx.moveTo(-8, -4);
-            // Dynamic long strand
-            ctx.quadraticCurveTo(-12 + hairS1 * 1.5, 0 + hairS2, -10 + hairS1, 3);
-            ctx.lineTo(-6, 2);
-            ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-8, -4);
+                ctx.quadraticCurveTo(-12 + hairS1 * 1.5, 0 + hairS2, -10 + hairS1, 3);
+                ctx.lineTo(-6, 2);
+                ctx.fill();
 
-            // Eye
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.ellipse(3, -4.5, 2.5, 1.5, 0, 0, Math.PI * 2);
-            ctx.fill();
-            // Pupil
-            ctx.fillStyle = '#0f172a';
-            ctx.beginPath();
-            ctx.arc(4, -4.5, 1, 0, Math.PI * 2);
-            ctx.fill();
+                // Eye
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.ellipse(3, -4.5, 2.5, 1.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // Pupil
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(4, -4.5, 1, 0, Math.PI * 2);
+                ctx.fill();
 
-            // Glasses (Office worker style!)
-            ctx.strokeStyle = '#1e293b';
-            ctx.lineWidth = 1.0;
-            ctx.beginPath();
-            // Frame around eye
-            ctx.roundRect(1, -6.5, 5, 4, 1);
-            ctx.stroke();
-            // Temple (arm to ear)
-            ctx.beginPath();
-            ctx.moveTo(1, -4.5);
-            ctx.lineTo(-4, -4.5);
-            ctx.stroke();
+                // Glasses
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 1.0;
+                ctx.beginPath();
+                ctx.roundRect(1, -6.5, 5, 4, 1);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(1, -4.5);
+                ctx.lineTo(-4, -4.5);
+                ctx.stroke();
 
-            // Eyebrow
-            ctx.strokeStyle = '#352212';
-            ctx.lineWidth = 1.2;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(1, -7.5);
-            ctx.lineTo(5, -8);
-            ctx.stroke();
+                // Eyebrow
+                ctx.strokeStyle = '#352212';
+                ctx.lineWidth = 1.2;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(1, -7.5);
+                ctx.lineTo(5, -8);
+                ctx.stroke();
+            } else if (player.skin === 'batman') {
+                // Detailed Batman Cowl - covers entire head except lower jaw/mouth
+                ctx.fillStyle = '#111827';
+                ctx.beginPath();
+
+                // Start from back jaw area and go up the back of head
+                ctx.moveTo(-8, 5);   // back jaw guard
+                ctx.lineTo(-9, -2);  // back of head, mid
+
+                // Arc over the entire top of the head (back to front)
+                ctx.arc(0, -4, 9, Math.PI, 0, false); // full top half arc
+
+                // Down the front cheek
+                ctx.lineTo(9, 2);
+                ctx.lineTo(8, 5);    // front cheekbone
+
+                // Face opening cutout (jaw/mouth area) - trace inward
+                ctx.lineTo(3, 3);    // cut toward jaw
+                ctx.lineTo(3, 0);    // jaw opening edge
+                ctx.lineTo(0, 0);    // mouth opening base
+                ctx.lineTo(-4, 2);   // nose bridge
+                ctx.closePath();
+                ctx.fill();
+
+                // Pointy bat ears on top of cowl
+                ctx.fillStyle = '#111827';
+                ctx.beginPath();
+                ctx.moveTo(-5, -12);  // Left ear base outer
+                ctx.lineTo(-7, -20);  // Left ear tip
+                ctx.lineTo(-2, -12);  // Left ear base inner
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(2, -12);   // Right ear base inner
+                ctx.lineTo(5, -20);   // Right ear tip
+                ctx.moveTo(2, -12);
+                ctx.lineTo(5, -20);
+                ctx.lineTo(7, -12);   // Right ear base outer
+                ctx.closePath();
+                ctx.fill();
+
+                // Angled White Eyes
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.moveTo(-1, -6);
+                ctx.lineTo(3, -7);
+                ctx.lineTo(4.5, -5);
+                ctx.lineTo(-1, -4.5);
+                ctx.fill();
+            } else if (player.skin === 'superman') {
+                // Superman Hair (Black, tight with a spit curl)
+                ctx.fillStyle = '#0a0a0a';
+                ctx.beginPath();
+                ctx.arc(0, -4, 8.5, Math.PI, Math.PI * 2); // top cap
+                ctx.lineTo(9, -2);
+                ctx.lineTo(5, -8);
+                // Spit curl
+                ctx.quadraticCurveTo(8, -4, 4, -4);
+                ctx.quadraticCurveTo(7, -6, -2, -8);
+                ctx.lineTo(-9, -2);
+                ctx.fill();
+
+                // Eye
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.ellipse(3, -4.5, 2.5, 1.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // Pupil (Blue)
+                ctx.fillStyle = '#1d4ed8';
+                ctx.beginPath();
+                ctx.arc(4, -4.5, 1, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Eyebrow
+                ctx.strokeStyle = '#020617';
+                ctx.lineWidth = 1.2;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(1, -7.5);
+                ctx.lineTo(5, -8);
+                ctx.stroke();
+            }
 
             ctx.restore(); // Head
-            ctx.restore(); // Torso
+            ctx.restore(); // Torso 
 
             // Front Leg (Right)
-            drawLeg(0, 0, rThighAngle, rKneeBend, '#0f172a', '#020617');
+            drawLeg(0, 0, rThighAngle, rKneeBend, frontLegTopColor, frontLegBotColor, player.skin);
 
             // Front Arm (Right)
             ctx.save();
             ctx.rotate(leanAngle);
             ctx.translate(0, -24);
             ctx.rotate(-leanAngle);
-            drawArm(0, 0, rShoulderAngle, rElbowBend, '#f8fafc', '#fed7aa', true);
+            drawArm(0, 0, rShoulderAngle, rElbowBend, frontArmSleeveColor, frontArmSkinColor, true, player.skin);
             ctx.restore();
 
             ctx.restore(); // Hips
         }
 
         // Draws a realistic leg segment (Pants -> Calf -> Shoe)
-        function drawLeg(x, y, thighAngle, kneeAngle, colorTop, colorBot) {
+        function drawLeg(x, y, thighAngle, kneeAngle, colorTop, colorBot, skinType) {
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(thighAngle);
@@ -1559,7 +1746,7 @@
             ctx.translate(0, 17);
             ctx.rotate(kneeAngle);
 
-            // Calf (Pants)
+            // Calf (Pants/Boots)
             ctx.fillStyle = colorBot;
             ctx.beginPath();
             ctx.moveTo(-3, -1);
@@ -1568,27 +1755,39 @@
             ctx.lineTo(-2, 16); // ankle
             ctx.fill();
 
-            // Dress Shoe
+            // Shoe / Boot
             ctx.translate(0, 16);
-            ctx.fillStyle = colorBot === '#020617' ? '#0f172a' : '#000000'; // shiny black
-            ctx.beginPath();
-            ctx.moveTo(-3, 0);
-            ctx.lineTo(7, 0); // pointing toe forwards
-            ctx.quadraticCurveTo(9, 4, 7, 5); // toe bend
-            ctx.lineTo(-4, 5); // heel
-            ctx.lineTo(-4, 0); // heel top
-            ctx.fill();
-            // Shoe highlight
-            if (colorBot === '#020617') {
-                ctx.fillStyle = 'rgba(255,255,255,0.15)';
-                ctx.fillRect(0, 1, 4, 1);
+            if (skinType === 'batman' || skinType === 'superman') {
+                ctx.fillStyle = colorBot; // Same color as calf/boot top
+                ctx.beginPath();
+                ctx.moveTo(-3, 0);
+                // Superhero boot shape
+                ctx.lineTo(8, 0);
+                ctx.quadraticCurveTo(8, 5, 5, 5);
+                ctx.lineTo(-4, 5);
+                ctx.lineTo(-4, 0);
+                ctx.fill();
+            } else {
+                ctx.fillStyle = colorBot === '#020617' ? '#0f172a' : '#000000'; // shiny black
+                ctx.beginPath();
+                ctx.moveTo(-3, 0);
+                ctx.lineTo(7, 0); // pointing toe forwards
+                ctx.quadraticCurveTo(9, 4, 7, 5); // toe bend
+                ctx.lineTo(-4, 5); // heel
+                ctx.lineTo(-4, 0); // heel top
+                ctx.fill();
+                // Shoe highlight
+                if (colorBot === '#020617') {
+                    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                    ctx.fillRect(0, 1, 4, 1);
+                }
             }
 
             ctx.restore();
         }
 
         // Draws a realistic arm segment (Sleeve -> Forearm -> Hand)
-        function drawArm(x, y, shoulderAngle, elbowAngle, shirtColor, skinColor, isFront) {
+        function drawArm(x, y, shoulderAngle, elbowAngle, shirtColor, skinColor, isFront, skinType) {
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(shoulderAngle);
@@ -1615,7 +1814,10 @@
             ctx.translate(0, 14);
             ctx.rotate(elbowAngle);
 
-            // Forearm (Sleeve folded)
+            // Forearm (Sleeve folded or glove)
+            const forearmColor = (skinType === 'batman') ? skinColor : shirtColor; // Batman gloves extend to forearm
+            ctx.fillStyle = forearmColor;
+
             ctx.beginPath();
             ctx.moveTo(-2, -1);
             ctx.lineTo(2, -1);
@@ -1623,13 +1825,29 @@
             ctx.lineTo(-1.5, 11);
             ctx.fill();
 
-            // Cuff detail
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(-1.5, 9);
-            ctx.lineTo(1.5, 9);
-            ctx.stroke();
+            if (skinType === 'batman' && isFront) {
+                // Batman gauntlet spikes (on the back of forearm)
+                ctx.fillStyle = '#1f2937';
+                ctx.beginPath();
+                ctx.moveTo(-1.5, 3); ctx.lineTo(-4, 2); ctx.lineTo(-1.5, 5);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-1.5, 6); ctx.lineTo(-4, 5); ctx.lineTo(-1.5, 8);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-1.5, 9); ctx.lineTo(-4, 8); ctx.lineTo(-1.5, 11);
+                ctx.fill();
+            }
+
+            if (skinType === 'default') {
+                // Cuff detail
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-1.5, 9);
+                ctx.lineTo(1.5, 9);
+                ctx.stroke();
+            }
 
             // Hand (Clenched slightly)
             ctx.translate(0, 11);
@@ -2697,6 +2915,27 @@
         }, { passive: false });
 
         // ── UI Buttons ──
+        const btnSkinDefault = document.getElementById('btn-skin-default');
+        const btnSkinBatman = document.getElementById('btn-skin-batman');
+        const btnSkinSuperman = document.getElementById('btn-skin-superman');
+
+        function selectSkin(skinName, activeBtn) {
+            player.skin = skinName;
+            // Reset button opacities
+            btnSkinDefault.style.opacity = '0.5';
+            btnSkinBatman.style.opacity = '0.5';
+            btnSkinSuperman.style.opacity = '0.5';
+            // Highlight selected
+            activeBtn.style.opacity = '1.0';
+        }
+
+        btnSkinDefault.addEventListener('click', () => selectSkin('default', btnSkinDefault));
+        btnSkinBatman.addEventListener('click', () => selectSkin('batman', btnSkinBatman));
+        btnSkinSuperman.addEventListener('click', () => selectSkin('superman', btnSkinSuperman));
+
+        // set initial state
+        selectSkin('default', btnSkinDefault);
+
         document.getElementById('start-btn').addEventListener('click', () => {
             startScreen.classList.add('hidden');
             initGame();
