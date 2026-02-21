@@ -1447,17 +1447,16 @@
             // Update Audio based on weather
             SoundSys.updateWeatherAudio(weather.intensity);
 
-            // Spawn Raindrops
-            if (weather.intensity > 0) {
-                // Spawn count scales with intensity
-                const spawnCount = Math.floor(weather.intensity * 5) + 1;
+            // Spawn Raindrops (capped for performance)
+            if (weather.intensity > 0 && weather.raindrops.length < 150) {
+                const spawnCount = Math.floor(weather.intensity * 3) + 1;
                 for (let i = 0; i < spawnCount; i++) {
                     weather.raindrops.push({
-                        x: Math.random() * canvas.width + canvas.width * 0.2, // Offset for angle
+                        x: Math.random() * canvas.width + canvas.width * 0.2,
                         y: -20,
-                        vx: -3 - Math.random() * 2, // Wind blowing left
-                        vy: 10 + Math.random() * 5, // Fall speed
-                        l: 10 + Math.random() * 20  // Length
+                        vx: -3 - Math.random() * 2,
+                        vy: 10 + Math.random() * 5,
+                        l: 10 + Math.random() * 20
                     });
                 }
             }
@@ -2711,8 +2710,9 @@
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
 
-            // === BACKGROUND ELEMENTS (Buildings + Trees) ===
+            // === BACKGROUND ELEMENTS (Buildings + Trees) — skip off-screen ===
             backgroundBuildings.forEach(b => {
+                if (b.x + b.w < -50 || b.x > canvas.width + 50) return; // cull off-screen
                 if (b.elementType === 'tree') {
                     drawTree(b);
                 } else {
@@ -2808,19 +2808,18 @@
 
             ctx.restore();
 
-            // Rain (Foreground) - Enhanced with variable thickness and mist
-            if (weather.intensity > 0) {
-                // Main rain streaks
+            // Rain (Foreground) — batched for performance
+            if (weather.intensity > 0 && weather.raindrops.length > 0) {
+                // Batch all rain into one path + stroke
+                ctx.strokeStyle = `rgba(170, 200, 255, ${weather.intensity * 0.45})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
                 weather.raindrops.forEach(r => {
-                    const thickness = 0.5 + r.l * 0.05;
-                    const alpha = weather.intensity * (0.3 + (r.l / 30) * 0.3);
-                    ctx.strokeStyle = `rgba(170, 200, 255, ${alpha})`;
-                    ctx.lineWidth = thickness;
-                    ctx.beginPath();
                     ctx.moveTo(r.x, r.y);
                     ctx.lineTo(r.x + r.vx * 2, r.y + r.l);
-                    ctx.stroke();
                 });
+                ctx.stroke();
+
                 // Rain mist layer near ground
                 if (weather.intensity > 0.3) {
                     const mistAlpha = (weather.intensity - 0.3) * 0.15;
@@ -2898,16 +2897,19 @@
                         ctx.moveTo(b.x + d.x, b.y);
                         ctx.lineTo(b.x + d.x, b.y - d.h);
                         ctx.stroke();
-                        // Blinking red light
+                        // Blinking red light (no shadowBlur)
                         const blinkOn = (Math.sin(animTime * 3 + d.blink * 10) > 0);
                         if (blinkOn) {
+                            // Glow halo
+                            ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+                            ctx.beginPath();
+                            ctx.arc(b.x + d.x, b.y - d.h, 6, 0, Math.PI * 2);
+                            ctx.fill();
+                            // Core dot
                             ctx.fillStyle = '#ef4444';
-                            ctx.shadowColor = '#ef4444';
-                            ctx.shadowBlur = 8;
                             ctx.beginPath();
                             ctx.arc(b.x + d.x, b.y - d.h, 2.5, 0, Math.PI * 2);
                             ctx.fill();
-                            ctx.shadowBlur = 0;
                         }
                     } else if (d.type === 'ac') {
                         ctx.fillStyle = `rgba(71, 85, 105, ${baseAlpha + 0.3})`;
@@ -2946,13 +2948,14 @@
                         // Billboard screen
                         ctx.fillStyle = '#0f172a';
                         ctx.fillRect(b.x + d.x, b.y - 45, 54, 25);
+                        // Glow halo
+                        ctx.globalAlpha = 0.15;
                         ctx.fillStyle = d.color;
-                        ctx.shadowColor = d.color;
-                        ctx.shadowBlur = 15;
-                        ctx.globalAlpha = 0.8 + Math.sin(animTime * 2 + b.x) * 0.2; // pulse
+                        ctx.fillRect(b.x + d.x - 4, b.y - 49, 62, 33);
+                        ctx.globalAlpha = 0.8 + Math.sin(animTime * 2 + b.x) * 0.2;
+                        ctx.fillStyle = d.color;
                         ctx.fillRect(b.x + d.x + 2, b.y - 43, 50, 21);
                         ctx.globalAlpha = 1.0;
-                        ctx.shadowBlur = 0;
                     }
                 });
             }
@@ -2971,57 +2974,54 @@
                 });
             }
 
-            // Windows
+            // Windows (no shadowBlur for performance)
             const isNight = timeProgress > 0.25 && timeProgress < 0.75;
             const isStormy = weather.intensity > 0.5;
             if (b.windows) {
                 b.windows.forEach(win => {
                     let lightOn = (isNight || isStormy) && win.lightSeed > 0.4;
                     if (lightOn) {
-                        // Different window light temperatures (warm/cool)
                         const isWarm = win.colorTheme > 0.5;
+                        // Glow halo (cheap replacement for shadowBlur)
+                        ctx.fillStyle = isWarm ? `rgba(253, 224, 71, 0.12)` : `rgba(186, 230, 253, 0.12)`;
+                        ctx.fillRect(b.x + win.x - 3, b.y + win.y - 3, win.w + 6, win.h + 6);
+                        // Lit window
                         ctx.fillStyle = isWarm ? `rgba(253, 224, 71, ${0.5 + b.layer * 0.2})` : `rgba(224, 242, 254, ${0.5 + b.layer * 0.2})`;
-                        ctx.shadowColor = isWarm ? '#facc15' : '#7dd3fc';
-                        ctx.shadowBlur = 8;
                     } else {
-                        // Dark reflections
                         ctx.fillStyle = `rgba(15, 23, 42, 0.6)`;
-                        ctx.shadowBlur = 0;
                     }
                     ctx.fillRect(b.x + win.x, b.y + win.y, win.w, win.h);
 
                     if (lightOn) {
-                        // Window sill / blinds silouhette
                         ctx.fillStyle = `rgba(0, 0, 0, 0.3)`;
-                        ctx.fillRect(b.x + win.x, b.y + win.y, win.w, win.h * 0.3); // half drawn blind
+                        ctx.fillRect(b.x + win.x, b.y + win.y, win.w, win.h * 0.3);
                     }
 
                     // Window frame
                     ctx.strokeStyle = `rgba(51, 65, 85, ${baseAlpha * 0.4})`;
                     ctx.lineWidth = 0.8;
                     ctx.strokeRect(b.x + win.x, b.y + win.y, win.w, win.h);
-                    ctx.shadowBlur = 0;
                 });
             }
 
-            // Neon sign
+            // Neon sign (no shadowBlur for performance)
             if (b.neonSign) {
                 const ns = b.neonSign;
+                // Glow halo instead of shadowBlur
+                ctx.globalAlpha = 0.25;
                 ctx.fillStyle = ns.color;
-                ctx.shadowColor = ns.color;
-                ctx.shadowBlur = 15;
+                ctx.fillRect(b.x + ns.x - 6, b.y + ns.y - 6, ns.w + 12, (ns.style === 2 ? ns.h * 2 : ns.h) + 12);
+                ctx.globalAlpha = 1.0;
+                ctx.fillStyle = ns.color;
                 if (ns.style === 0) {
                     ctx.fillRect(b.x + ns.x, b.y + ns.y, ns.w, ns.h);
                 } else if (ns.style === 1) {
-                    // Lines of text
                     ctx.fillRect(b.x + ns.x, b.y + ns.y, ns.w, 2);
                     ctx.fillRect(b.x + ns.x, b.y + ns.y + 4, ns.w * 0.8, 2);
                     ctx.fillRect(b.x + ns.x, b.y + ns.y + 8, ns.w * 0.6, 2);
                 } else {
-                    // Vertical sign
                     ctx.fillRect(b.x + ns.x, b.y + ns.y, 6, ns.h * 2);
                 }
-                ctx.shadowBlur = 0;
             }
         }
 
