@@ -1503,7 +1503,9 @@
             // --- Player Logic ---
             player.x += (player.vx + gameSpeed) * dt;
             player.vy += GRAVITY * dt;
+            const prevFootY = player.y + player.height; // foot position BEFORE move
             player.y += player.vy * dt;
+            const currFootY = player.y + player.height; // foot position AFTER move
 
             if (player.isGrounded) {
                 animTime += 0.25 * dt;
@@ -1518,18 +1520,19 @@
 
             player.isGrounded = false;
             for (let p of platforms) {
-                if (
-                    player.x + player.width > p.x &&
-                    player.x < p.x + p.w &&
-                    player.y + player.height >= p.y &&
-                    player.y + player.height <= p.y + 25
-                ) {
+                // Swept collision: check if feet crossed through platform top this frame
+                const onPlatformX = player.x + player.width > p.x && player.x < p.x + p.w;
+                const feetCrossedTop = prevFootY <= p.y + 8 && currFootY >= p.y - 4;
+                const feetOnSurface = currFootY >= p.y && currFootY <= p.y + 30;
+
+                if (onPlatformX && (feetCrossedTop || feetOnSurface)) {
                     if (player.vy >= 0) {
+                        const landVy = player.vy; // save before zeroing
                         player.isGrounded = true;
                         player.vy = 0;
                         player.y = p.y - player.height;
                         if (Math.random() > 0.9) createParticles(player.x + player.width / 2, player.y + player.height, 2, '#777');
-                        if (player.vy > 2) SoundSys.playLand();
+                        if (landVy > 2) SoundSys.playLand();
                     }
                 }
             }
@@ -3212,9 +3215,17 @@
                 if (lastTime === 0) lastTime = timestamp;
                 const elapsed = timestamp - lastTime;
                 lastTime = timestamp;
-                // Clamp dt to avoid spiral-of-death on tab switch (max ~3 frames)
-                const dt = Math.min(elapsed / (1000 / 60), 3);
-                update(dt);
+                // Clamp dt to avoid spiral-of-death on tab switch (max ~2 frames)
+                const totalDt = Math.min(elapsed / (1000 / 60), 2);
+
+                // Sub-step physics when dt > 1 for reliable collision detection
+                if (totalDt > 1.0) {
+                    const steps = Math.ceil(totalDt);
+                    const subDt = totalDt / steps;
+                    for (let i = 0; i < steps; i++) update(subDt);
+                } else {
+                    update(totalDt);
+                }
                 draw();
                 requestAnimationFrame(loop);
             }
