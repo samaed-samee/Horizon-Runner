@@ -128,6 +128,454 @@
             margin: 0 0.2rem;
         }
 
+        /* ── Enhanced Home Screen ── */
+        @keyframes fadeSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(40px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: -200% center;
+            }
+
+            100% {
+                background-position: 200% center;
+            }
+        }
+
+        @keyframes pulseGlow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 15px 2px var(--glow-color), inset 0 0 15px rgba(255, 255, 255, 0.03);
+            }
+
+            50% {
+                box-shadow: 0 0 30px 8px var(--glow-color), inset 0 0 20px rgba(255, 255, 255, 0.08);
+            }
+        }
+
+        @keyframes btnShimmer {
+            0% {
+                left: -100%;
+            }
+
+            100% {
+                left: 200%;
+            }
+        }
+
+        @keyframes floatY {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-6px);
+            }
+        }
+
+        .start-screen-enhanced {
+            background: radial-gradient(ellipse at 50% 30%, rgba(15, 23, 42, 0.8) 0%, rgba(0, 0, 0, 0.95) 70%);
+            backdrop-filter: blur(10px);
+        }
+
+        .title-main {
+            font-size: clamp(3rem, 10vw, 6rem);
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #22d3ee, #a855f7, #ec4899, #22d3ee);
+            background-size: 300% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: shimmer 4s linear infinite, fadeSlideDown 0.8s ease-out both;
+            filter: drop-shadow(0 0 30px rgba(168, 85, 247, 0.4)) drop-shadow(0 0 60px rgba(34, 211, 238, 0.2));
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            animation: fadeSlideDown 0.8s ease-out 0.15s both;
+            margin-bottom: 1.75rem;
+        }
+
+        .subtitle-row .line {
+            flex: 1;
+            max-width: 80px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.5), transparent);
+        }
+
+        .subtitle-row .label {
+            color: rgba(203, 213, 225, 0.8);
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.35em;
+            text-transform: uppercase;
+        }
+
+        .choose-label {
+            color: rgba(148, 163, 184, 0.6);
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            animation: fadeSlideUp 0.6s ease-out 0.3s both;
+        }
+
+        .char-select {
+            display: flex;
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .char-card {
+            --glow-color: rgba(100, 116, 139, 0.3);
+            width: 140px;
+            height: 190px;
+            border-radius: 1rem;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            border: 2px solid rgba(100, 116, 139, 0.15);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            opacity: 0.5;
+            padding-top: 0.5rem;
+        }
+
+        .char-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 1rem;
+            background: radial-gradient(ellipse at 50% 90%, var(--glow-color), transparent 70%);
+            opacity: 0;
+            transition: opacity 0.35s ease;
+        }
+
+        .char-card:hover {
+            transform: translateY(-6px) scale(1.04);
+            opacity: 0.8;
+            border-color: rgba(148, 163, 184, 0.3);
+        }
+
+        .char-card:hover::before {
+            opacity: 0.5;
+        }
+
+        .char-card.selected {
+            opacity: 1;
+            border-color: transparent;
+            animation: pulseGlow 2.5s ease-in-out infinite;
+            transform: translateY(-4px);
+        }
+
+        .char-card.selected::before {
+            opacity: 1;
+        }
+
+        .char-card.card-default {
+            --glow-color: rgba(34, 211, 238, 0.3);
+        }
+
+        .char-card.card-default.selected {
+            --glow-color: rgba(34, 211, 238, 0.45);
+            border-color: #22d3ee;
+        }
+
+        .char-card.card-batman {
+            --glow-color: rgba(234, 179, 8, 0.3);
+        }
+
+        .char-card.card-batman.selected {
+            --glow-color: rgba(234, 179, 8, 0.45);
+            border-color: #eab308;
+        }
+
+        .char-card.card-superman {
+            --glow-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .char-card.card-superman.selected {
+            --glow-color: rgba(239, 68, 68, 0.45);
+            border-color: #ef4444;
+        }
+
+        .char-card:nth-child(1) {
+            animation: fadeSlideUp 0.6s ease-out 0.35s both;
+        }
+
+        .char-card:nth-child(2) {
+            animation: fadeSlideUp 0.6s ease-out 0.5s both;
+        }
+
+        .char-card:nth-child(3) {
+            animation: fadeSlideUp 0.6s ease-out 0.65s both;
+        }
+
+        .char-card.selected {
+            animation: pulseGlow 2.5s ease-in-out infinite;
+        }
+
+        .char-preview {
+            width: 80px;
+            height: 110px;
+            image-rendering: auto;
+            position: relative;
+            z-index: 1;
+            animation: floatY 3s ease-in-out infinite;
+        }
+
+        .char-card:nth-child(2) .char-preview {
+            animation-delay: 0.4s;
+        }
+
+        .char-card:nth-child(3) .char-preview {
+            animation-delay: 0.8s;
+        }
+
+        .char-name {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: rgba(226, 232, 240, 0.85);
+            position: relative;
+            z-index: 1;
+        }
+
+        .char-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #22d3ee, #a855f7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            color: white;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 2;
+        }
+
+        .char-card.selected .char-badge {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .btn-start-enhanced {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #06b6d4, #8b5cf6, #ec4899);
+            background-size: 200% 200%;
+            color: white;
+            padding: 1rem 3.5rem;
+            font-weight: 800;
+            font-size: 1.1rem;
+            font-family: 'Inter', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.35s ease;
+            box-shadow: 0 4px 25px rgba(139, 92, 246, 0.4), 0 0 60px rgba(139, 92, 246, 0.15);
+            animation: fadeSlideUp 0.6s ease-out 0.8s both;
+        }
+
+        .btn-start-enhanced::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 60%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+            animation: btnShimmer 3s ease-in-out infinite 1.5s;
+        }
+
+        .btn-start-enhanced:hover {
+            transform: scale(1.06);
+            box-shadow: 0 6px 35px rgba(139, 92, 246, 0.6), 0 0 80px rgba(139, 92, 246, 0.25);
+            background-position: 100% 0;
+        }
+
+        .btn-start-enhanced:active {
+            transform: scale(0.97);
+        }
+
+        .key-hints {
+            animation: fadeSlideUp 0.5s ease-out 1s both;
+        }
+
+        /* Make start screen scrollable as a safety net */
+        .start-screen-enhanced {
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        @media (max-width: 640px) {
+            .char-select {
+                gap: 0.75rem;
+            }
+
+            .char-card {
+                width: 105px;
+                height: 150px;
+                border-radius: 0.75rem;
+            }
+
+            .char-preview {
+                width: 60px;
+                height: 85px;
+            }
+
+            .char-name {
+                font-size: 0.65rem;
+            }
+
+            .btn-start-enhanced {
+                padding: 0.8rem 2.5rem;
+                font-size: 0.95rem;
+            }
+        }
+
+        /* Landscape mobile — very short viewport height */
+        @media (max-height: 500px) {
+            .title-main {
+                font-size: clamp(1.8rem, 6vw, 2.8rem);
+                margin-bottom: 0.2rem;
+            }
+
+            .subtitle-row {
+                margin-bottom: 0.5rem;
+                gap: 0.5rem;
+            }
+
+            .subtitle-row .label {
+                font-size: 0.6rem;
+            }
+
+            .choose-label {
+                margin-bottom: 0.35rem;
+                font-size: 0.55rem;
+            }
+
+            .char-select {
+                gap: 0.6rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .char-card {
+                width: 95px;
+                height: 120px;
+                border-radius: 0.6rem;
+                padding-top: 0.25rem;
+                gap: 0.2rem;
+            }
+
+            .char-preview {
+                width: 55px;
+                height: 72px;
+            }
+
+            .char-name {
+                font-size: 0.6rem;
+            }
+
+            .char-badge {
+                width: 16px;
+                height: 16px;
+                font-size: 0.5rem;
+                top: 4px;
+                right: 4px;
+            }
+
+            .btn-start-enhanced {
+                padding: 0.6rem 2rem;
+                font-size: 0.85rem;
+                letter-spacing: 0.15em;
+            }
+
+            .key-hints {
+                margin-top: 0.5rem !important;
+            }
+        }
+
+        /* Very compact screens (small phones in landscape) */
+        @media (max-height: 380px) {
+            .title-main {
+                font-size: 1.5rem;
+            }
+
+            .subtitle-row {
+                margin-bottom: 0.3rem;
+            }
+
+            .choose-label {
+                margin-bottom: 0.25rem;
+            }
+
+            .char-select {
+                margin-bottom: 0.5rem;
+            }
+
+            .char-card {
+                width: 85px;
+                height: 105px;
+            }
+
+            .char-preview {
+                width: 48px;
+                height: 65px;
+            }
+
+            .btn-start-enhanced {
+                padding: 0.5rem 1.5rem;
+                font-size: 0.8rem;
+            }
+        }
+
         /* ── Mobile Touch Controls ── */
         .touch-controls {
             display: none;
@@ -305,27 +753,38 @@
             <div class="text-sm text-slate-400">This game is best played in landscape mode</div>
         </div>
 
-        <div id="start-screen" class="overlay flex flex-col items-center justify-center p-4">
-            <h1
-                class="text-5xl sm:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-500 mb-2 uppercase tracking-tighter text-shadow-glow animate-pulse">
-                Horizon Runner
-            </h1>
-            <p class="text-slate-300 mb-8 tracking-widest text-sm sm:text-base font-semibold uppercase">Urban Parkour
-            </p>
-
-            <div class="flex gap-4 mb-8">
-                <button id="btn-skin-default"
-                    class="px-4 py-2 bg-slate-800 border-2 border-cyan-400 text-cyan-400 font-bold rounded shadow-[0_0_10px_1px_rgba(34,211,238,0.5)] transition-all">Office</button>
-                <button id="btn-skin-batman"
-                    class="px-4 py-2 bg-slate-900 border-2 border-yellow-500 text-yellow-500 font-bold rounded shadow-[0_0_10px_1px_rgba(234,179,8,0.5)] transition-all opacity-50">Batman</button>
-                <button id="btn-skin-superman"
-                    class="px-4 py-2 bg-blue-900 border-2 border-red-500 text-red-500 font-bold rounded shadow-[0_0_10px_1px_rgba(239,68,68,0.5)] transition-all opacity-50">Superman</button>
+        <div id="start-screen" class="overlay start-screen-enhanced flex flex-col items-center justify-center p-4">
+            <h1 class="title-main">Horizon Runner</h1>
+            <div class="subtitle-row">
+                <span class="line"></span>
+                <span class="label">Urban Parkour</span>
+                <span class="line"></span>
             </div>
 
-            <button id="start-btn" class="btn-start shadow-[0_0_20px_2px_rgba(244,63,94,0.6)] mb-8">START RUN</button>
+            <div class="choose-label">Choose Your Runner</div>
+
+            <div class="char-select">
+                <div class="char-card card-default selected" id="card-default" data-skin="default">
+                    <canvas class="char-preview" id="preview-default" width="80" height="110"></canvas>
+                    <div class="char-name">Office</div>
+                    <div class="char-badge">✓</div>
+                </div>
+                <div class="char-card card-batman" id="card-batman" data-skin="batman">
+                    <canvas class="char-preview" id="preview-batman" width="80" height="110"></canvas>
+                    <div class="char-name">Batman</div>
+                    <div class="char-badge">✓</div>
+                </div>
+                <div class="char-card card-superman" id="card-superman" data-skin="superman">
+                    <canvas class="char-preview" id="preview-superman" width="80" height="110"></canvas>
+                    <div class="char-name">Superman</div>
+                    <div class="char-badge">✓</div>
+                </div>
+            </div>
+
+            <button id="start-btn" class="btn-start-enhanced">Start Run</button>
 
             <div
-                class="key-hint-row mt-6 sm:mt-8 text-slate-400 text-xs uppercase tracking-widest font-medium flex gap-6">
+                class="key-hint-row key-hints mt-6 sm:mt-8 text-slate-400 text-xs uppercase tracking-widest font-medium flex gap-6">
                 <span><span class="key-hint">SPACE</span> Jump</span>
                 <span><span class="key-hint">SHIFT</span> Dash</span>
             </div>
@@ -2914,27 +3373,230 @@
             e.preventDefault();
         }, { passive: false });
 
-        // ── UI Buttons ──
-        const btnSkinDefault = document.getElementById('btn-skin-default');
-        const btnSkinBatman = document.getElementById('btn-skin-batman');
-        const btnSkinSuperman = document.getElementById('btn-skin-superman');
+        // ── Character Selection ──
+        const cardDefault = document.getElementById('card-default');
+        const cardBatman = document.getElementById('card-batman');
+        const cardSuperman = document.getElementById('card-superman');
+        const allCards = [cardDefault, cardBatman, cardSuperman];
 
-        function selectSkin(skinName, activeBtn) {
+        function selectSkin(skinName, activeCard) {
             player.skin = skinName;
-            // Reset button opacities
-            btnSkinDefault.style.opacity = '0.5';
-            btnSkinBatman.style.opacity = '0.5';
-            btnSkinSuperman.style.opacity = '0.5';
-            // Highlight selected
-            activeBtn.style.opacity = '1.0';
+            allCards.forEach(c => c.classList.remove('selected'));
+            activeCard.classList.add('selected');
         }
 
-        btnSkinDefault.addEventListener('click', () => selectSkin('default', btnSkinDefault));
-        btnSkinBatman.addEventListener('click', () => selectSkin('batman', btnSkinBatman));
-        btnSkinSuperman.addEventListener('click', () => selectSkin('superman', btnSkinSuperman));
+        cardDefault.addEventListener('click', () => selectSkin('default', cardDefault));
+        cardBatman.addEventListener('click', () => selectSkin('batman', cardBatman));
+        cardSuperman.addEventListener('click', () => selectSkin('superman', cardSuperman));
 
-        // set initial state
-        selectSkin('default', btnSkinDefault);
+        selectSkin('default', cardDefault);
+
+        // ── Character Preview Rendering ──
+        function renderCharacterPreviews() {
+            const previews = [
+                { id: 'preview-default', skin: 'default' },
+                { id: 'preview-batman', skin: 'batman' },
+                { id: 'preview-superman', skin: 'superman' }
+            ];
+            previews.forEach(({ id, skin }) => {
+                const c = document.getElementById(id);
+                if (!c) return;
+                const p = c.getContext('2d');
+                p.clearRect(0, 0, c.width, c.height);
+                const cx = c.width / 2;
+                const by = c.height - 8;
+
+                // Shadow
+                p.fillStyle = 'rgba(0,0,0,0.25)';
+                p.beginPath();
+                p.ellipse(cx, by, 12, 3, 0, 0, Math.PI * 2);
+                p.fill();
+
+                // Skin-dependent colors
+                let suit, leg, boot, sleeve, hand, belt, trunk, capeCol;
+                if (skin === 'default') {
+                    suit = '#f8fafc'; leg = '#1e293b'; boot = '#0f172a';
+                    sleeve = '#f8fafc'; hand = '#ffedd5'; belt = '#0f172a'; trunk = null; capeCol = null;
+                } else if (skin === 'batman') {
+                    suit = '#374151'; leg = '#4b5563'; boot = '#111827';
+                    sleeve = '#4b5563'; hand = '#030712'; belt = '#eab308'; trunk = '#111827'; capeCol = '#111827';
+                } else {
+                    suit = '#1d4ed8'; leg = '#1d4ed8'; boot = '#991b1b';
+                    sleeve = '#1d4ed8'; hand = '#ffedd5'; belt = '#eab308'; trunk = '#dc2626'; capeCol = '#dc2626';
+                }
+
+                // Cape (behind body)
+                if (capeCol) {
+                    p.fillStyle = capeCol;
+                    p.beginPath();
+                    p.moveTo(cx - 9, by - 47);
+                    p.quadraticCurveTo(cx - 16, by - 25, cx - 13, by - 6);
+                    p.lineTo(cx + 13, by - 6);
+                    p.quadraticCurveTo(cx + 16, by - 25, cx + 9, by - 47);
+                    p.fill();
+                }
+
+                // Legs
+                p.fillStyle = leg;
+                p.beginPath(); p.roundRect(cx - 7, by - 20, 6, 16, 1); p.fill();
+                p.beginPath(); p.roundRect(cx + 1, by - 20, 6, 16, 1); p.fill();
+
+                // Boots
+                p.fillStyle = boot;
+                p.beginPath(); p.roundRect(cx - 8, by - 5, 8, 5, [0, 0, 2, 2]); p.fill();
+                p.beginPath(); p.roundRect(cx + 0, by - 5, 8, 5, [0, 0, 2, 2]); p.fill();
+
+                // Torso
+                p.fillStyle = suit;
+                p.beginPath();
+                p.moveTo(cx - 9, by - 22);
+                p.lineTo(cx + 9, by - 22);
+                p.lineTo(cx + 10, by - 46);
+                p.lineTo(cx - 10, by - 46);
+                p.closePath();
+                p.fill();
+
+                // Belt
+                p.fillStyle = belt;
+                p.fillRect(cx - 8, by - 23, 16, 3);
+
+                // Trunks
+                if (trunk) {
+                    p.fillStyle = trunk;
+                    p.fillRect(cx - 7, by - 20, 14, 4);
+                }
+
+                // Chest detail
+                if (skin === 'batman') {
+                    p.fillStyle = '#000';
+                    p.beginPath(); p.ellipse(cx, by - 36, 5, 2.5, 0, 0, Math.PI * 2); p.fill();
+                } else if (skin === 'superman') {
+                    p.fillStyle = '#dc2626';
+                    p.beginPath();
+                    p.moveTo(cx, by - 41); p.lineTo(cx + 5, by - 36);
+                    p.lineTo(cx, by - 31); p.lineTo(cx - 5, by - 36);
+                    p.fill();
+                    p.fillStyle = '#eab308';
+                    p.beginPath();
+                    p.moveTo(cx, by - 39); p.lineTo(cx + 3, by - 36);
+                    p.lineTo(cx, by - 33); p.lineTo(cx - 3, by - 36);
+                    p.fill();
+                } else {
+                    // Collar
+                    p.fillStyle = '#e2e8f0';
+                    p.beginPath();
+                    p.moveTo(cx - 3, by - 46); p.lineTo(cx + 3, by - 46);
+                    p.lineTo(cx, by - 42); p.closePath(); p.fill();
+                    // Tie
+                    p.fillStyle = '#dc2626';
+                    p.beginPath();
+                    p.moveTo(cx - 1.5, by - 44); p.lineTo(cx + 1.5, by - 44);
+                    p.lineTo(cx + 1, by - 28); p.lineTo(cx - 1, by - 28);
+                    p.closePath(); p.fill();
+                    p.fillStyle = '#b91c1c';
+                    p.beginPath();
+                    p.moveTo(cx - 1, by - 28); p.lineTo(cx + 1, by - 28);
+                    p.lineTo(cx, by - 25); p.closePath(); p.fill();
+                }
+
+                // Arms
+                p.fillStyle = sleeve;
+                p.beginPath(); p.roundRect(cx - 14, by - 46, 5, 16, 2); p.fill();
+                p.beginPath(); p.roundRect(cx + 9, by - 46, 5, 16, 2); p.fill();
+
+                // Hands
+                p.fillStyle = hand;
+                p.beginPath(); p.arc(cx - 11.5, by - 28, 3, 0, Math.PI * 2); p.fill();
+                p.beginPath(); p.arc(cx + 11.5, by - 28, 3, 0, Math.PI * 2); p.fill();
+
+                // Batman gauntlet spikes
+                if (skin === 'batman') {
+                    p.fillStyle = '#1f2937';
+                    p.beginPath(); p.moveTo(cx + 14, by - 40); p.lineTo(cx + 17, by - 42); p.lineTo(cx + 14, by - 37); p.fill();
+                    p.beginPath(); p.moveTo(cx + 14, by - 36); p.lineTo(cx + 17, by - 38); p.lineTo(cx + 14, by - 33); p.fill();
+                }
+
+                // Neck
+                p.fillStyle = skin === 'batman' ? '#111827' : '#fed7aa';
+                p.fillRect(cx - 3, by - 51, 6, 5);
+
+                // Head
+                p.fillStyle = '#fed7aa';
+                p.beginPath(); p.arc(cx, by - 58, 9, 0, Math.PI * 2); p.fill();
+                // Jaw
+                p.beginPath();
+                p.moveTo(cx - 9, by - 58); p.lineTo(cx - 6, by - 50);
+                p.lineTo(cx + 6, by - 50); p.lineTo(cx + 9, by - 58);
+                p.fill();
+
+                // Nose
+                p.fillStyle = '#fdb172';
+                p.beginPath();
+                p.moveTo(cx + 8, by - 58); p.lineTo(cx + 11, by - 56); p.lineTo(cx + 8, by - 54);
+                p.fill();
+
+                if (skin === 'default') {
+                    // Hair
+                    p.fillStyle = '#452b17';
+                    p.beginPath();
+                    p.arc(cx, by - 58, 9.5, Math.PI, Math.PI * 2, false);
+                    p.quadraticCurveTo(cx + 9, by - 56, cx + 5, by - 64);
+                    p.quadraticCurveTo(cx - 2, by - 68, cx - 10, by - 56);
+                    p.fill();
+                    // Eye
+                    p.fillStyle = '#fff';
+                    p.beginPath(); p.ellipse(cx + 3, by - 59, 2.5, 1.5, 0, 0, Math.PI * 2); p.fill();
+                    p.fillStyle = '#0f172a';
+                    p.beginPath(); p.arc(cx + 4, by - 59, 1, 0, Math.PI * 2); p.fill();
+                    // Glasses
+                    p.strokeStyle = '#1e293b'; p.lineWidth = 1;
+                    p.strokeRect(cx + 0.5, by - 61, 5, 4);
+                    p.beginPath(); p.moveTo(cx + 0.5, by - 59); p.lineTo(cx - 4, by - 59); p.stroke();
+                } else if (skin === 'batman') {
+                    // Cowl
+                    p.fillStyle = '#111827';
+                    p.beginPath();
+                    p.arc(cx, by - 58, 10, Math.PI, 0, false);
+                    p.lineTo(cx + 10, by - 54);
+                    p.lineTo(cx + 5, by - 55); p.lineTo(cx + 4, by - 54);
+                    p.lineTo(cx, by - 54); p.lineTo(cx - 5, by - 53);
+                    p.lineTo(cx - 10, by - 54);
+                    p.closePath(); p.fill();
+                    // Ears
+                    p.beginPath();
+                    p.moveTo(cx - 5, by - 66); p.lineTo(cx - 8, by - 78); p.lineTo(cx - 2, by - 66);
+                    p.closePath(); p.fill();
+                    p.beginPath();
+                    p.moveTo(cx + 2, by - 66); p.lineTo(cx + 6, by - 78); p.lineTo(cx + 7, by - 66);
+                    p.closePath(); p.fill();
+                    // White eyes
+                    p.fillStyle = '#fff';
+                    p.beginPath();
+                    p.moveTo(cx, by - 60); p.lineTo(cx + 4, by - 61);
+                    p.lineTo(cx + 5, by - 59); p.lineTo(cx, by - 58.5);
+                    p.fill();
+                } else {
+                    // Superman hair
+                    p.fillStyle = '#0a0a0a';
+                    p.beginPath();
+                    p.arc(cx, by - 58, 9.5, Math.PI, Math.PI * 2, false);
+                    p.quadraticCurveTo(cx + 9, by - 56, cx + 5, by - 64);
+                    p.quadraticCurveTo(cx - 2, by - 68, cx - 10, by - 56);
+                    p.fill();
+                    // Spit curl
+                    p.beginPath();
+                    p.moveTo(cx + 5, by - 58);
+                    p.quadraticCurveTo(cx + 8, by - 56, cx + 4, by - 55);
+                    p.fill();
+                    // Eye
+                    p.fillStyle = '#fff';
+                    p.beginPath(); p.ellipse(cx + 3, by - 59, 2.5, 1.5, 0, 0, Math.PI * 2); p.fill();
+                    p.fillStyle = '#1d4ed8';
+                    p.beginPath(); p.arc(cx + 4, by - 59, 1, 0, Math.PI * 2); p.fill();
+                }
+            });
+        }
+        renderCharacterPreviews();
 
         document.getElementById('start-btn').addEventListener('click', () => {
             startScreen.classList.add('hidden');
